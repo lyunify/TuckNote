@@ -170,6 +170,7 @@ struct MarkdownEditorView: View {
 
     @State private var selection: NSRange
     @State private var pendingReplacement: InlineReplacementRequest?
+    @State private var requestedSelection: EditorSelectionRequest?
 
     private let boldRequest = Notification.Name("TuckNote.Markdown.Bold")
     private let italicRequest = Notification.Name("TuckNote.Markdown.Italic")
@@ -207,6 +208,7 @@ struct MarkdownEditorView: View {
                 TextSelectionMonitor(
                     documentID: documentID,
                     initialSelection: initialSelection,
+                    requestedSelection: requestedSelection,
                     onSelectionChange: selectionChanged
                 )
             )
@@ -276,6 +278,10 @@ struct MarkdownEditorView: View {
                 text: text,
                 selection: selection
             ) else { return }
+            requestedSelection = EditorSelectionRequest(
+                documentID: documentID,
+                range: edit.selectedRange
+            )
             pendingReplacement = InlineReplacementRequest(
                 documentId: documentID,
                 selection: WikiLinkSelection(
@@ -303,6 +309,18 @@ struct MarkdownEditorView: View {
     }
 }
 
+struct EditorSelectionRequest: Equatable {
+    let id: UUID
+    let documentID: String
+    let range: NSRange
+
+    init(id: UUID = UUID(), documentID: String, range: NSRange) {
+        self.id = id
+        self.documentID = documentID
+        self.range = range
+    }
+}
+
 private struct TuckNoteImageProvider: EmbeddedImageProvider, @unchecked Sendable {
     let store: ImageStore
 
@@ -322,88 +340,160 @@ private struct TuckNoteImageProvider: EmbeddedImageProvider, @unchecked Sendable
 private struct TextSelectionMonitor: NSViewRepresentable {
     let documentID: String
     let initialSelection: NSRange
+    let requestedSelection: EditorSelectionRequest?
     let onSelectionChange: (NSRange) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onSelectionChange: onSelectionChange)
+        TextSelectionCoordinator(onSelectionChange: onSelectionChange)
     }
 
     func makeNSView(context: Context) -> SelectionMonitorView {
         let view = SelectionMonitorView()
-        context.coordinator.attach(to: view, documentID: documentID, initialSelection: initialSelection)
+        context.coordinator.attach(
+            to: view,
+            documentID: documentID,
+            initialSelection: initialSelection,
+            requestedSelection: requestedSelection
+        )
         return view
     }
 
     func updateNSView(_ view: SelectionMonitorView, context: Context) {
         context.coordinator.onSelectionChange = onSelectionChange
-        context.coordinator.attach(to: view, documentID: documentID, initialSelection: initialSelection)
+        context.coordinator.attach(
+            to: view,
+            documentID: documentID,
+            initialSelection: initialSelection,
+            requestedSelection: requestedSelection
+        )
     }
 
     static func dismantleNSView(_ view: SelectionMonitorView, coordinator: Coordinator) {
         coordinator.stopObserving()
     }
 
-    @MainActor
-    final class Coordinator: NSObject {
-        var onSelectionChange: (NSRange) -> Void
-        private weak var hostView: NSView?
-        private var isObserving = false
-        private var documentID: String?
+    typealias Coordinator = TextSelectionCoordinator
+}
 
-        init(onSelectionChange: @escaping (NSRange) -> Void) {
-            self.onSelectionChange = onSelectionChange
-            super.init()
-        }
+@MainActor
+final class TextSelectionCoordinator: NSObject {
+    var onSelectionChange: (NSRange) -> Void
+    private(set) weak var textView: NSTextView?
+    private(set) var lastAppliedRequestID: UUID?
+    private weak var hostView: NSView?
+    private var isObserving = false
+    private var documentID: String?
+    private var initialSelection = NSRange(location: 0, length: 0)
+    private var requestedSelection: EditorSelectionRequest?
+    private var needsInitialRestoration = false
+    private var suppressSelectionChanges = false
 
-        func attach(to view: NSView, documentID: String, initialSelection: NSRange) {
-            hostView = view
-            if !isObserving {
-                NotificationCenter.default.addObserver(
-                    self,
-                    selector: #selector(selectionDidChange(_:)),
-                    name: NSTextView.didChangeSelectionNotification,
-                    object: nil
-                )
-                isObserving = true
-            }
-            guard self.documentID != documentID else { return }
+    init(onSelectionChange: @escaping (NSRange) -> Void) {
+        self.onSelectionChange = onSelectionChange
+        super.init()
+    }
+
+    func attach(
+        to view: NSView,
+        documentID: String,
+        initialSelection: NSRange,
+        requestedSelection: EditorSelectionRequest?,
+        schedule: Bool = true
+    ) {
+        hostView = view
+        self.initialSelection = initialSelection
+        self.requestedSelection = requestedSelection
+        startObservingIfNeeded()
+
+        if self.documentID != documentID {
             self.documentID = documentID
-            DispatchQueue.main.async { [weak self, weak view] in
-                guard let self, let window = view?.window,
-                      let textView = Self.firstTextView(in: window.contentView) else { return }
-                let length = (textView.string as NSString).length
-                let location = min(max(initialSelection.location, 0), length)
-                let range = NSRange(
-                    location: location,
-                    length: min(max(initialSelection.length, 0), length - location)
-                )
-                textView.setSelectedRange(range)
-                self.onSelectionChange(range)
+            textView = nil
+            needsInitialRestoration = true
+            suppressSelectionChanges = true
+        }
+
+        guard schedule else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.resolveAssociationAndApplySelection()
+        }
+    }
+
+    func resolveAssociationAndApplySelection() {
+        guard let hostView,
+              let associatedTextView = Self.associatedTextView(for: hostView) else { return }
+        textView = associatedTextView
+
+        if needsInitialRestoration {
+            let range = clamped(initialSelection, to: associatedTextView)
+            associatedTextView.setSelectedRange(range)
+            needsInitialRestoration = false
+            suppressSelectionChanges = false
+        }
+
+        guard let requestedSelection,
+              requestedSelection.documentID == documentID,
+              requestedSelection.id != lastAppliedRequestID else { return }
+        associatedTextView.setSelectedRange(clamped(requestedSelection.range, to: associatedTextView))
+        lastAppliedRequestID = requestedSelection.id
+    }
+
+    func stopObserving() {
+        NotificationCenter.default.removeObserver(self)
+        isObserving = false
+        textView = nil
+    }
+
+    private func startObservingIfNeeded() {
+        guard !isObserving else { return }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(selectionDidChange(_:)),
+            name: NSTextView.didChangeSelectionNotification,
+            object: nil
+        )
+        isObserving = true
+    }
+
+    @objc private func selectionDidChange(_ notification: Notification) {
+        guard !suppressSelectionChanges,
+              let observedTextView = notification.object as? NSTextView,
+              observedTextView === textView else { return }
+        onSelectionChange(observedTextView.selectedRange())
+    }
+
+    private func clamped(_ range: NSRange, to textView: NSTextView) -> NSRange {
+        let length = (textView.string as NSString).length
+        let location = min(max(range.location, 0), length)
+        return NSRange(
+            location: location,
+            length: min(max(range.length, 0), length - location)
+        )
+    }
+
+    private static func associatedTextView(for monitor: NSView) -> NSTextView? {
+        var ancestor = monitor.superview
+        while let candidate = ancestor {
+            let textViews = descendantTextViews(in: candidate)
+            if textViews.count == 1 {
+                return textViews[0]
             }
+            ancestor = candidate.superview
         }
+        return nil
+    }
 
-        func stopObserving() {
-            NotificationCenter.default.removeObserver(self)
-            isObserving = false
+    private static func descendantTextViews(in view: NSView) -> [NSTextView] {
+        var result: [NSTextView] = []
+        if let textView = view as? NSTextView {
+            result.append(textView)
         }
-
-        @objc private func selectionDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView,
-                  textView.window === hostView?.window else { return }
-            onSelectionChange(textView.selectedRange())
+        for subview in view.subviews {
+            result.append(contentsOf: descendantTextViews(in: subview))
         }
-
-        private static func firstTextView(in view: NSView?) -> NSTextView? {
-            guard let view else { return nil }
-            if let textView = view as? NSTextView { return textView }
-            for subview in view.subviews {
-                if let textView = firstTextView(in: subview) { return textView }
-            }
-            return nil
-        }
+        return result
     }
 }
 
-private final class SelectionMonitorView: NSView {
+final class SelectionMonitorView: NSView {
     override var intrinsicContentSize: NSSize { .zero }
 }

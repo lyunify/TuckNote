@@ -156,4 +156,133 @@ final class MarkdownEditorTests: XCTestCase {
         XCTAssertNil(reportedError)
     }
 
+    @MainActor
+    func testSelectionCoordinatorObservesAndRestoresOnlyItsAssociatedEditor() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        let root = NSView(frame: window.contentView!.bounds)
+        let firstGroup = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 300))
+        let secondGroup = NSView(frame: NSRect(x: 250, y: 0, width: 250, height: 300))
+        let monitor = SelectionMonitorView()
+        let firstEditor = NSTextView(frame: firstGroup.bounds)
+        let secondEditor = NSTextView(frame: secondGroup.bounds)
+        firstEditor.string = "first editor"
+        secondEditor.string = "second editor"
+        let secondSelectionBeforeRestore = secondEditor.selectedRange()
+        firstGroup.addSubview(firstEditor)
+        firstGroup.addSubview(monitor)
+        secondGroup.addSubview(secondEditor)
+        root.addSubview(firstGroup)
+        root.addSubview(secondGroup)
+        window.contentView = root
+        var observed: [NSRange] = []
+        let coordinator = TextSelectionCoordinator { observed.append($0) }
+
+        coordinator.attach(
+            to: monitor,
+            documentID: "first",
+            initialSelection: NSRange(location: 2, length: 3),
+            requestedSelection: nil,
+            schedule: false
+        )
+        coordinator.resolveAssociationAndApplySelection()
+
+        XCTAssertTrue(coordinator.textView === firstEditor)
+        XCTAssertEqual(firstEditor.selectedRange(), NSRange(location: 2, length: 3))
+        XCTAssertEqual(secondEditor.selectedRange(), secondSelectionBeforeRestore)
+        XCTAssertTrue(observed.isEmpty, "restoration must not be persisted as a user selection")
+
+        secondEditor.setSelectedRange(NSRange(location: 4, length: 1))
+        NotificationCenter.default.post(
+            name: NSTextView.didChangeSelectionNotification,
+            object: secondEditor
+        )
+        XCTAssertTrue(observed.isEmpty)
+
+        firstEditor.setSelectedRange(NSRange(location: 6, length: 2))
+        NotificationCenter.default.post(
+            name: NSTextView.didChangeSelectionNotification,
+            object: firstEditor
+        )
+        XCTAssertEqual(observed.last, NSRange(location: 6, length: 2))
+        coordinator.stopObserving()
+    }
+
+    @MainActor
+    func testSelectionCoordinatorAppliesPromisedRangesAfterEveryHostTransformation() throws {
+        let commands: [(MarkdownToolbarCommand, String, NSRange)] = [
+            (.link, "alpha", NSRange(location: 5, length: 0)),
+            (.inlineCode, "alpha", NSRange(location: 5, length: 0)),
+            (.link, "alpha beta", NSRange(location: 6, length: 4)),
+            (.inlineCode, "alpha beta", NSRange(location: 6, length: 4)),
+            (.task, "one\ntwo", NSRange(location: 0, length: 7))
+        ]
+
+        for (command, source, originalSelection) in commands {
+            let edit = try XCTUnwrap(
+                MarkdownSelectionEdit.make(
+                    command: command,
+                    text: source,
+                    selection: originalSelection
+                )
+            )
+            let editor = NSTextView()
+            editor.string = (source as NSString).replacingCharacters(
+                in: edit.range,
+                with: edit.replacement
+            )
+            let group = NSView()
+            let monitor = SelectionMonitorView()
+            group.addSubview(editor)
+            group.addSubview(monitor)
+            let coordinator = TextSelectionCoordinator { _ in }
+            let request = EditorSelectionRequest(documentID: "document", range: edit.selectedRange)
+
+            coordinator.attach(
+                to: monitor,
+                documentID: "document",
+                initialSelection: originalSelection,
+                requestedSelection: request,
+                schedule: false
+            )
+            coordinator.resolveAssociationAndApplySelection()
+
+            XCTAssertEqual(editor.selectedRange(), edit.selectedRange, command.title)
+            XCTAssertEqual(coordinator.lastAppliedRequestID, request.id, command.title)
+            coordinator.stopObserving()
+        }
+    }
+
+    @MainActor
+    func testSelectionCoordinatorIgnoresRequestFromOutgoingDocument() {
+        let editor = NSTextView()
+        editor.string = "new page"
+        let group = NSView()
+        let monitor = SelectionMonitorView()
+        group.addSubview(editor)
+        group.addSubview(monitor)
+        let coordinator = TextSelectionCoordinator { _ in }
+        let staleRequest = EditorSelectionRequest(
+            documentID: "old-page",
+            range: NSRange(location: 7, length: 1)
+        )
+
+        coordinator.attach(
+            to: monitor,
+            documentID: "new-page",
+            initialSelection: NSRange(location: 1, length: 2),
+            requestedSelection: staleRequest,
+            schedule: false
+        )
+        coordinator.resolveAssociationAndApplySelection()
+
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 1, length: 2))
+        XCTAssertNil(coordinator.lastAppliedRequestID)
+        coordinator.stopObserving()
+    }
+
 }
