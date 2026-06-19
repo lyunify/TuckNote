@@ -38,4 +38,26 @@ final class PanelPresentationTests: XCTestCase {
         XCTAssertFalse(dwell.update(isInside: true, now: 10.319))
         XCTAssertTrue(dwell.update(isInside: true, now: 10.320))
     }
+
+    func testPageAccessibilityLabelIncludesPositionAndCount() {
+        XCTAssertEqual(NotebookAccessibility.pageLabel(position: 2, count: 5), "Page 2 of 5")
+        XCTAssertEqual(NotebookAccessibility.addPageLabel, "Add page")
+        XCTAssertEqual(NotebookAccessibility.removePageLabel, "Remove page")
+        XCTAssertEqual(NotebookAccessibility.settingsLabel, "Settings")
+        XCTAssertEqual(NotebookAccessibility.dismissNoticeLabel, "Dismiss notice")
+    }
+
+    func testReducedMotionUses120MillisecondEaseOutFadeAndResize() {
+        XCTAssertEqual(
+            PanelAnimationSpec.make(reduceMotion: true),
+            PanelAnimationSpec(duration: 0.120, curve: .easeOut, fades: true, resizes: true)
+        )
+    }
+
+    func testStandardMotionUsesSpringResize() {
+        XCTAssertEqual(
+            PanelAnimationSpec.make(reduceMotion: false),
+            PanelAnimationSpec(duration: 0.22, curve: .spring, fades: false, resizes: true)
+        )
+    }
 }

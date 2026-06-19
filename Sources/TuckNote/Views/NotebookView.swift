@@ -1,12 +1,23 @@
 import SwiftUI
 
+enum NotebookAccessibility {
+    static let addPageLabel = "Add page"
+    static let removePageLabel = "Remove page"
+    static let settingsLabel = "Settings"
+    static let dismissNoticeLabel = "Dismiss notice"
+
+    static func pageLabel(position: Int, count: Int) -> String {
+        "Page \(position) of \(count)"
+    }
+}
+
 struct CompactNotchView: View {
     var body: some View {
         RoundedRectangle(cornerRadius: TuckNoteTheme.compactCornerRadius)
             .fill(TuckNoteTheme.shell)
             .overlay(alignment: .bottom) {
                 Capsule()
-                    .fill(TuckNoteTheme.shellHighlight)
+                    .fill(TuckNoteTheme.espresso)
                     .frame(
                         width: TuckNoteTheme.compactHandleWidth,
                         height: TuckNoteTheme.compactHandleHeight
@@ -36,7 +47,8 @@ struct NotebookView: View {
                     } label: {
                         Capsule()
                             .fill(page.id == store.notebook.activePageID
-                                  ? TuckNoteTheme.paper : TuckNoteTheme.shellHighlight)
+                                  ? TuckNoteTheme.espresso
+                                  : TuckNoteTheme.espresso.opacity(0.45))
                             .frame(
                                 width: page.id == store.notebook.activePageID
                                     ? TuckNoteTheme.activePageIndicatorWidth
@@ -45,21 +57,72 @@ struct NotebookView: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Page \(pageNumber(for: page))")
+                    .focusable()
+                    .accessibilityLabel(
+                        NotebookAccessibility.pageLabel(
+                            position: pageNumber(for: page),
+                            count: store.notebook.pages.count
+                        )
+                    )
+                    .help(
+                        NotebookAccessibility.pageLabel(
+                            position: pageNumber(for: page),
+                            count: store.notebook.pages.count
+                        )
+                    )
                 }
 
                 Spacer()
-                shellButton(symbol: "minus", label: "Remove page", action: store.removeActivePage)
-                shellButton(symbol: "plus", label: "Add page", action: store.addPage)
+                shellButton(
+                    symbol: "minus",
+                    label: NotebookAccessibility.removePageLabel,
+                    action: store.removeActivePage
+                )
+                shellButton(
+                    symbol: "plus",
+                    label: NotebookAccessibility.addPageLabel,
+                    action: store.addPage
+                )
                 SettingsLink {
                     Image(systemName: "gearshape")
                         .frame(width: TuckNoteTheme.controlSize, height: TuckNoteTheme.controlSize)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Settings")
+                .focusable()
+                .accessibilityLabel(NotebookAccessibility.settingsLabel)
+                .help(NotebookAccessibility.settingsLabel)
             }
             .frame(height: TuckNoteTheme.toolbarHeight)
-            .foregroundStyle(TuckNoteTheme.paper)
+            .foregroundStyle(TuckNoteTheme.espresso)
+
+            if let notice = store.notice {
+                HStack(spacing: TuckNoteTheme.toolbarSpacing) {
+                    Image(systemName: "exclamationmark.circle")
+                        .accessibilityHidden(true)
+                    Text(notice)
+                        .font(.caption)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(action: store.dismissNotice) {
+                        Image(systemName: "xmark")
+                            .frame(
+                                width: TuckNoteTheme.controlSize,
+                                height: TuckNoteTheme.controlSize
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .focusable()
+                    .accessibilityLabel(NotebookAccessibility.dismissNoticeLabel)
+                    .help(NotebookAccessibility.dismissNoticeLabel)
+                }
+                .foregroundStyle(TuckNoteTheme.ink)
+                .padding(.leading, TuckNoteTheme.editorPadding)
+                .background(TuckNoteTheme.paper)
+                .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius))
+                .overlay {
+                    RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius)
+                        .stroke(TuckNoteTheme.border, lineWidth: 1)
+                }
+            }
 
             MarkdownEditorView(
                 text: markdown,
@@ -76,15 +139,12 @@ struct NotebookView: View {
                     store.showNotice("Could not save pasted image.")
                 }
             )
-                .background(TuckNoteTheme.paper)
+                .background(TuckNoteTheme.editor)
                 .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius))
-
-            if let notice = store.notice {
-                Text(notice)
-                    .font(.caption)
-                    .foregroundStyle(TuckNoteTheme.paper)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+                .overlay {
+                    RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius)
+                        .stroke(TuckNoteTheme.border, lineWidth: 1)
+                }
         }
         .padding(.horizontal, TuckNoteTheme.shellHorizontalPadding)
         .padding(.vertical, TuckNoteTheme.shellVerticalPadding)
@@ -102,6 +162,8 @@ struct NotebookView: View {
                 .frame(width: TuckNoteTheme.controlSize, height: TuckNoteTheme.controlSize)
         }
         .buttonStyle(.plain)
+        .focusable()
         .accessibilityLabel(label)
+        .help(label)
     }
 }

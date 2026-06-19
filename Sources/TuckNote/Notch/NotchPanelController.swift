@@ -32,6 +32,24 @@ struct HoverDwellState {
     }
 }
 
+struct PanelAnimationSpec: Equatable {
+    enum Curve: Equatable {
+        case spring
+        case easeOut
+    }
+
+    let duration: TimeInterval
+    let curve: Curve
+    let fades: Bool
+    let resizes: Bool
+
+    static func make(reduceMotion: Bool) -> Self {
+        reduceMotion
+            ? Self(duration: 0.120, curve: .easeOut, fades: true, resizes: true)
+            : Self(duration: 0.22, curve: .spring, fades: false, resizes: true)
+    }
+}
+
 @MainActor
 final class NotchPanelController {
     private static let hoverPollInterval: TimeInterval = 1.0 / 30.0
@@ -115,20 +133,35 @@ final class NotchPanelController {
 
     private func applyPresentation(animated: Bool) {
         let geometry = geometryForCurrentScreen()
-        compactPanel.setFrame(geometry.compactFrame, display: true)
-        expandedPanel.setFrame(geometry.expandedFrame, display: true)
-
         let shownPanel = presentation.showsCompactPanel ? compactPanel : expandedPanel
         let hiddenPanel = presentation.showsCompactPanel ? expandedPanel : compactPanel
+        let targetFrame = presentation.showsCompactPanel
+            ? geometry.compactFrame
+            : geometry.expandedFrame
+        let initialFrame = presentation.showsCompactPanel
+            ? geometry.expandedFrame
+            : geometry.compactFrame
+
+        compactPanel.setFrame(geometry.compactFrame, display: true)
+        expandedPanel.setFrame(geometry.expandedFrame, display: true)
         hiddenPanel.orderOut(nil)
         if animated {
-            shownPanel.alphaValue = 0
+            let spec = PanelAnimationSpec.make(
+                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            )
+            shownPanel.setFrame(initialFrame, display: false)
+            shownPanel.alphaValue = spec.fades ? 0 : 1
             shownPanel.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.16
+                context.duration = spec.duration
+                context.timingFunction = spec.curve == .easeOut
+                    ? CAMediaTimingFunction(name: .easeOut)
+                    : CAMediaTimingFunction(controlPoints: 0.34, 1.56, 0.64, 1)
                 shownPanel.animator().alphaValue = 1
+                shownPanel.animator().setFrame(targetFrame, display: true)
             }
         } else {
+            shownPanel.setFrame(targetFrame, display: true)
             shownPanel.alphaValue = 1
             shownPanel.orderFrontRegardless()
         }

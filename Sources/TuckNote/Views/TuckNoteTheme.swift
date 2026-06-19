@@ -1,13 +1,17 @@
 import SwiftUI
 
 enum TuckNoteTheme {
-    static let shell = Color(red: 0.50, green: 0.25, blue: 0.30)
-    static let shellHighlight = Color(red: 0.64, green: 0.36, blue: 0.41)
-    static let paper = Color(red: 0.96, green: 0.89, blue: 0.87)
-    static let ink = Color(red: 0.22, green: 0.12, blue: 0.14)
-    static let mutedInk = Color(red: 0.45, green: 0.31, blue: 0.33)
+    static let rose = Color(red: 231 / 255, green: 185 / 255, blue: 186 / 255)
+    static let espresso = Color(red: 89 / 255, green: 50 / 255, blue: 47 / 255)
+    static let paper = Color(red: 255 / 255, green: 248 / 255, blue: 244 / 255)
+    static let editor = Color(red: 246 / 255, green: 229 / 255, blue: 223 / 255)
+    static let border = Color(red: 236 / 255, green: 213 / 255, blue: 205 / 255)
+    static let shell = rose
+    static let shellHighlight = border
+    static let ink = espresso
+    static let mutedInk = Color(red: 0.32, green: 0.22, blue: 0.21)
     static let compactCornerRadius: CGFloat = 11
-    static let expandedCornerRadius: CGFloat = 22
+    static let expandedCornerRadius: CGFloat = 18
     static let compactHandleWidth: CGFloat = 38
     static let compactHandleHeight: CGFloat = 3
     static let compactHandleBottomPadding: CGFloat = 5

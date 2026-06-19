@@ -224,4 +224,14 @@ final class NoteStoreTests: XCTestCase {
         XCTAssertNotNil(store.notice)
         XCTAssertFalse(store.isSaving)
     }
+
+    func testDismissNoticeClearsCurrentNotice() async {
+        let store = NoteStore(storage: StoreStorageSpy(), saveDelay: .seconds(60))
+        await store.load()
+        store.showNotice("Could not save pasted image.")
+
+        store.dismissNotice()
+
+        XCTAssertNil(store.notice)
+    }
 }

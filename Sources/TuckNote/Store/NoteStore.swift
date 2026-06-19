@@ -86,6 +86,10 @@ final class NoteStore: ObservableObject {
         notice = message
     }
 
+    func dismissNotice() {
+        notice = nil
+    }
+
     func flush() async {
         while isSaving || isDirty {
             saveTask?.cancel()
