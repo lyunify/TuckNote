@@ -6,7 +6,7 @@ struct TuckNoteApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            SettingsView(settings: appDelegate.settings)
         }
     }
 }

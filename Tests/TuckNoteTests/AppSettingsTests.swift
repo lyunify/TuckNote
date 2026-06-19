@@ -21,6 +21,15 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings(defaults: defaults).triggerMode, .hover)
     }
 
+    func testTriggerModeIsStringCodable() throws {
+        let mode: TriggerMode = .hover
+
+        let data = try JSONEncoder().encode(mode)
+
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "\"hover\"")
+        XCTAssertEqual(try JSONDecoder().decode(TriggerMode.self, from: data), .hover)
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "AppSettingsTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

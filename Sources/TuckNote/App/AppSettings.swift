@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-enum PanelTriggerMode: String, CaseIterable, Identifiable {
+enum TriggerMode: String, Codable, CaseIterable, Identifiable {
     case click
     case hover
 
@@ -16,13 +16,13 @@ final class AppSettings: ObservableObject {
 
     private let defaults: UserDefaults
 
-    @Published var triggerMode: PanelTriggerMode {
+    @Published var triggerMode: TriggerMode {
         didSet { defaults.set(triggerMode.rawValue, forKey: Key.triggerMode) }
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         triggerMode = defaults.string(forKey: Key.triggerMode)
-            .flatMap(PanelTriggerMode.init(rawValue:)) ?? .click
+            .flatMap(TriggerMode.init(rawValue:)) ?? .click
     }
 }

@@ -2,12 +2,14 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let settings = AppSettings()
+
     private var statusItem: NSStatusItem?
     private var storage: FileNotebookStorage?
     private var imageStore: ImageStore?
     private var noteStore: NoteStore?
-    private var settings: AppSettings?
     private var panelController: NotchPanelController?
+    private let shortcutService = GlobalShortcutService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -19,7 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let storage = FileNotebookStorage(baseDirectory: baseDirectory)
         let imageStore = ImageStore(baseDirectory: baseDirectory)
         let noteStore = NoteStore(storage: storage)
-        let settings = AppSettings()
         let panelController = NotchPanelController(
             store: noteStore,
             imageStore: imageStore,
@@ -29,8 +30,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.storage = storage
         self.imageStore = imageStore
         self.noteStore = noteStore
-        self.settings = settings
         self.panelController = panelController
+        shortcutService.start { [weak panelController] in
+            panelController?.toggle()
+        }
 
         buildStatusItem()
         Task {
@@ -46,6 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        shortcutService.stop()
     }
 
     private func buildStatusItem() {
