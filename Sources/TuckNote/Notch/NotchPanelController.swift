@@ -32,9 +32,29 @@ struct HoverDwellState {
     }
 }
 
-struct PanelAnimationSpec: Equatable {
+struct PanelSpringSpecification: Equatable {
+    let mass: CGFloat
+    let stiffness: CGFloat
+    let damping: CGFloat
+    let initialVelocity: CGFloat
+
+    static let panel = Self(mass: 1, stiffness: 320, damping: 28, initialVelocity: 0)
+
+    func makeAnimation(from transform: CATransform3D) -> CASpringAnimation {
+        let animation = CASpringAnimation(keyPath: "transform")
+        animation.mass = mass
+        animation.stiffness = stiffness
+        animation.damping = damping
+        animation.initialVelocity = initialVelocity
+        animation.fromValue = NSValue(caTransform3D: transform)
+        animation.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+        animation.duration = animation.settlingDuration
+        return animation
+    }
+}
+
+struct PanelReducedMotionSpecification: Equatable {
     enum Curve: Equatable {
-        case spring
         case easeOut
     }
 
@@ -43,10 +63,17 @@ struct PanelAnimationSpec: Equatable {
     let fades: Bool
     let resizes: Bool
 
+    static let panel = Self(duration: 0.120, curve: .easeOut, fades: true, resizes: true)
+}
+
+enum PanelAnimationSpec: Equatable {
+    case spring(PanelSpringSpecification)
+    case reducedMotion(PanelReducedMotionSpecification)
+
     static func make(reduceMotion: Bool) -> Self {
         reduceMotion
-            ? Self(duration: 0.120, curve: .easeOut, fades: true, resizes: true)
-            : Self(duration: 0.22, curve: .spring, fades: false, resizes: true)
+            ? .reducedMotion(.panel)
+            : .spring(.panel)
     }
 }
 
@@ -144,21 +171,38 @@ final class NotchPanelController {
 
         compactPanel.setFrame(geometry.compactFrame, display: true)
         expandedPanel.setFrame(geometry.expandedFrame, display: true)
+        hiddenPanel.contentView?.layer?.removeAnimation(forKey: "panelSpring")
         hiddenPanel.orderOut(nil)
         if animated {
             let spec = PanelAnimationSpec.make(
                 reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             )
-            shownPanel.setFrame(initialFrame, display: false)
-            shownPanel.alphaValue = spec.fades ? 0 : 1
-            shownPanel.orderFrontRegardless()
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = spec.duration
-                context.timingFunction = spec.curve == .easeOut
-                    ? CAMediaTimingFunction(name: .easeOut)
-                    : CAMediaTimingFunction(controlPoints: 0.34, 1.56, 0.64, 1)
-                shownPanel.animator().alphaValue = 1
-                shownPanel.animator().setFrame(targetFrame, display: true)
+            switch spec {
+            case let .reducedMotion(specification):
+                shownPanel.setFrame(initialFrame, display: false)
+                shownPanel.alphaValue = specification.fades ? 0 : 1
+                shownPanel.orderFrontRegardless()
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = specification.duration
+                    switch specification.curve {
+                    case .easeOut:
+                        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    }
+                    shownPanel.animator().alphaValue = 1
+                    if specification.resizes {
+                        shownPanel.animator().setFrame(targetFrame, display: true)
+                    }
+                }
+            case let .spring(specification):
+                shownPanel.setFrame(targetFrame, display: true)
+                shownPanel.alphaValue = 1
+                shownPanel.orderFrontRegardless()
+                animateSpring(
+                    in: shownPanel,
+                    from: initialFrame,
+                    to: targetFrame,
+                    specification: specification
+                )
             }
         } else {
             shownPanel.setFrame(targetFrame, display: true)
@@ -168,6 +212,29 @@ final class NotchPanelController {
         if presentation.showsExpandedPanel {
             expandedPanel.makeKeyAndOrderFront(nil)
         }
+    }
+
+    private func animateSpring(
+        in panel: NSPanel,
+        from initialFrame: CGRect,
+        to targetFrame: CGRect,
+        specification: PanelSpringSpecification
+    ) {
+        guard targetFrame.width > 0, targetFrame.height > 0, let contentView = panel.contentView
+        else { return }
+        contentView.wantsLayer = true
+        guard let layer = contentView.layer else { return }
+        layer.removeAnimation(forKey: "panelSpring")
+        layer.transform = CATransform3DIdentity
+        let initialTransform = CATransform3DMakeScale(
+            initialFrame.width / targetFrame.width,
+            initialFrame.height / targetFrame.height,
+            1
+        )
+        layer.add(
+            specification.makeAnimation(from: initialTransform),
+            forKey: "panelSpring"
+        )
     }
 
     private func geometryForCurrentScreen() -> NotchGeometry {

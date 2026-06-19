@@ -160,6 +160,26 @@ enum MarkdownImagePaste {
     }
 }
 
+@MainActor
+struct MarkdownEditorAppearance {
+    let surface: NSColor
+    let ink: NSColor
+
+    static let tuckNote = Self(
+        surface: NSColor(TuckNoteTheme.editor),
+        ink: NSColor(TuckNoteTheme.ink)
+    )
+
+    func apply(to textView: NSTextView) {
+        textView.drawsBackground = true
+        textView.backgroundColor = surface
+        textView.insertionPointColor = ink
+        guard let scrollView = textView.enclosingScrollView else { return }
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = surface
+    }
+}
+
 struct MarkdownEditorView: View {
     @Binding private var text: String
     let documentID: String
@@ -174,6 +194,7 @@ struct MarkdownEditorView: View {
 
     private let boldRequest = Notification.Name("TuckNote.Markdown.Bold")
     private let italicRequest = Notification.Name("TuckNote.Markdown.Italic")
+    private let appearance = MarkdownEditorAppearance.tuckNote
 
     init(
         text: Binding<String>,
@@ -209,11 +230,12 @@ struct MarkdownEditorView: View {
                     documentID: documentID,
                     initialSelection: initialSelection,
                     requestedSelection: requestedSelection,
+                    appearance: appearance,
                     onSelectionChange: selectionChanged
                 )
             )
         }
-        .background(Color.white)
+        .background(Color(nsColor: appearance.surface))
     }
 
     private var toolbar: some View {
@@ -231,15 +253,15 @@ struct MarkdownEditorView: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(Color(nsColor: .labelColor))
+        .foregroundStyle(Color(nsColor: appearance.ink))
         .padding(.horizontal, 10)
         .frame(height: 34)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(nsColor: appearance.surface))
     }
 
     private var configuration: MarkdownEditorConfiguration {
         let theme = MarkdownEditorTheme(
-            bodyText: .black,
+            bodyText: appearance.ink,
             mutedText: .darkGray,
             disabledText: .gray,
             headingMarker: .darkGray,
@@ -341,10 +363,11 @@ private struct TextSelectionMonitor: NSViewRepresentable {
     let documentID: String
     let initialSelection: NSRange
     let requestedSelection: EditorSelectionRequest?
+    let appearance: MarkdownEditorAppearance
     let onSelectionChange: (NSRange) -> Void
 
     func makeCoordinator() -> Coordinator {
-        TextSelectionCoordinator(onSelectionChange: onSelectionChange)
+        TextSelectionCoordinator(appearance: appearance, onSelectionChange: onSelectionChange)
     }
 
     func makeNSView(context: Context) -> SelectionMonitorView {
@@ -360,6 +383,7 @@ private struct TextSelectionMonitor: NSViewRepresentable {
 
     func updateNSView(_ view: SelectionMonitorView, context: Context) {
         context.coordinator.onSelectionChange = onSelectionChange
+        context.coordinator.appearance = appearance
         context.coordinator.attach(
             to: view,
             documentID: documentID,
@@ -378,6 +402,7 @@ private struct TextSelectionMonitor: NSViewRepresentable {
 @MainActor
 final class TextSelectionCoordinator: NSObject {
     var onSelectionChange: (NSRange) -> Void
+    var appearance: MarkdownEditorAppearance
     private(set) weak var textView: NSTextView?
     private(set) var lastAppliedRequestID: UUID?
     private weak var hostView: NSView?
@@ -388,7 +413,11 @@ final class TextSelectionCoordinator: NSObject {
     private var needsInitialRestoration = false
     private var suppressSelectionChanges = false
 
-    init(onSelectionChange: @escaping (NSRange) -> Void) {
+    init(
+        appearance: MarkdownEditorAppearance = .tuckNote,
+        onSelectionChange: @escaping (NSRange) -> Void
+    ) {
+        self.appearance = appearance
         self.onSelectionChange = onSelectionChange
         super.init()
     }
@@ -422,6 +451,7 @@ final class TextSelectionCoordinator: NSObject {
         guard let hostView,
               let associatedTextView = Self.associatedTextView(for: hostView) else { return }
         textView = associatedTextView
+        appearance.apply(to: associatedTextView)
 
         if needsInitialRestoration {
             let range = clamped(initialSelection, to: associatedTextView)

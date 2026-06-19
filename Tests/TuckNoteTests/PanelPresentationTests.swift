@@ -1,3 +1,4 @@
+import QuartzCore
 import XCTest
 @testable import TuckNote
 
@@ -48,16 +49,35 @@ final class PanelPresentationTests: XCTestCase {
     }
 
     func testReducedMotionUses120MillisecondEaseOutFadeAndResize() {
+        guard case let .reducedMotion(specification) = PanelAnimationSpec.make(reduceMotion: true)
+        else { return XCTFail("Expected the fixed reduced-motion policy") }
+
         XCTAssertEqual(
-            PanelAnimationSpec.make(reduceMotion: true),
-            PanelAnimationSpec(duration: 0.120, curve: .easeOut, fades: true, resizes: true)
+            specification,
+            PanelReducedMotionSpecification(
+                duration: 0.120,
+                curve: .easeOut,
+                fades: true,
+                resizes: true
+            )
         )
     }
 
-    func testStandardMotionUsesSpringResize() {
-        XCTAssertEqual(
-            PanelAnimationSpec.make(reduceMotion: false),
-            PanelAnimationSpec(duration: 0.22, curve: .spring, fades: false, resizes: true)
+    func testStandardMotionCreatesPhysicalSpringAnimation() {
+        guard case let .spring(specification) = PanelAnimationSpec.make(reduceMotion: false)
+        else { return XCTFail("Expected a physical spring policy") }
+
+        let animation = specification.makeAnimation(
+            from: CATransform3DMakeScale(0.5, 0.25, 1)
         )
+
+        XCTAssertEqual(animation.keyPath, "transform")
+        XCTAssertEqual(animation.mass, 1)
+        XCTAssertEqual(animation.stiffness, 320)
+        XCTAssertEqual(animation.damping, 28)
+        XCTAssertEqual(animation.initialVelocity, 0)
+        XCTAssertGreaterThan(animation.settlingDuration, 0.120)
+        XCTAssertEqual(animation.fromValue as? NSValue, NSValue(caTransform3D: CATransform3DMakeScale(0.5, 0.25, 1)))
+        XCTAssertEqual(animation.toValue as? NSValue, NSValue(caTransform3D: CATransform3DIdentity))
     }
 }

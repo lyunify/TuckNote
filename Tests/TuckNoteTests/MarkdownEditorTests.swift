@@ -3,6 +3,32 @@ import XCTest
 @testable import TuckNote
 
 final class MarkdownEditorTests: XCTestCase {
+    @MainActor
+    func testEditorAppearanceAppliesExactSurfaceToNativeTextAndScrollViews() throws {
+        let scrollView = NSScrollView()
+        let textView = NSTextView()
+        scrollView.documentView = textView
+
+        MarkdownEditorAppearance.tuckNote.apply(to: textView)
+
+        let expected = try XCTUnwrap(
+            NSColor(TuckNoteTheme.editor).usingColorSpace(.sRGB)
+        )
+        XCTAssertEqual(
+            textView.backgroundColor.usingColorSpace(.sRGB),
+            expected
+        )
+        XCTAssertTrue(scrollView.drawsBackground)
+        XCTAssertEqual(
+            scrollView.backgroundColor.usingColorSpace(.sRGB),
+            expected
+        )
+        XCTAssertEqual(
+            MarkdownEditorAppearance.tuckNote.surface.usingColorSpace(.sRGB),
+            expected
+        )
+    }
+
     func testToolbarContainsExactlyTheEightFocusedCommands() {
         XCTAssertEqual(
             MarkdownToolbarCommand.allCases,
