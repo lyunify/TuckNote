@@ -19,7 +19,8 @@ struct NotchGeometry {
         )
         hasPhysicalNotch = safeAreaInsets.top > 1 || auxiliaryGap != nil
 
-        let compactWidth = min(max(auxiliaryGap ?? 120, 120), 220)
+        let nominalCompactWidth = min(max(auxiliaryGap ?? 120, 120), 220)
+        let compactWidth = min(screenFrame.width, nominalCompactWidth)
         let compactHeight = min(
             max(safeAreaInsets.top, screenFrame.maxY - visibleFrame.maxY, 32),
             screenFrame.height

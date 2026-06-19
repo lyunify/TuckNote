@@ -56,4 +56,44 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertTrue(screenFrame.contains(geometry.compactFrame))
         XCTAssertTrue(screenFrame.contains(geometry.expandedFrame))
     }
+
+    func testCompactFrameIsContainedWhenScreenIsNarrowerThanFallbackWidth() {
+        let screenFrame = CGRect(x: 240, y: -80, width: 100, height: 100)
+        let geometry = NotchGeometry(
+            screenFrame: screenFrame,
+            visibleFrame: screenFrame,
+            safeAreaInsets: NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0),
+            auxiliaryTopLeftArea: nil,
+            auxiliaryTopRightArea: nil
+        )
+
+        XCTAssertEqual(geometry.compactFrame.width, 100)
+        XCTAssertEqual(geometry.compactFrame.midX, screenFrame.midX)
+        XCTAssertEqual(geometry.compactFrame.maxY, screenFrame.maxY)
+        XCTAssertTrue(screenFrame.contains(geometry.compactFrame))
+    }
+
+    func testAuxiliaryGapBelowMinimumUses120PointCompactWidth() {
+        let geometry = NotchGeometry(
+            screenFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            safeAreaInsets: NSEdgeInsets(top: 50, left: 0, bottom: 0, right: 0),
+            auxiliaryTopLeftArea: CGRect(x: 0, y: 750, width: 470, height: 50),
+            auxiliaryTopRightArea: CGRect(x: 530, y: 750, width: 470, height: 50)
+        )
+
+        XCTAssertEqual(geometry.compactFrame.width, 120)
+    }
+
+    func testAuxiliaryGapAboveMaximumUses220PointCompactWidth() {
+        let geometry = NotchGeometry(
+            screenFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            safeAreaInsets: NSEdgeInsets(top: 50, left: 0, bottom: 0, right: 0),
+            auxiliaryTopLeftArea: CGRect(x: 0, y: 750, width: 350, height: 50),
+            auxiliaryTopRightArea: CGRect(x: 650, y: 750, width: 350, height: 50)
+        )
+
+        XCTAssertEqual(geometry.compactFrame.width, 220)
+    }
 }
