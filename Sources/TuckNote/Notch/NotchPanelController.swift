@@ -37,6 +37,7 @@ final class NotchPanelController {
     private static let hoverPollInterval: TimeInterval = 1.0 / 30.0
 
     private let store: NoteStore
+    private let imageStore: ImageStore
     private let settings: AppSettings
     private let compactPanel: NSPanel
     private let expandedPanel: NSPanel
@@ -46,8 +47,9 @@ final class NotchPanelController {
     nonisolated(unsafe) private var hoverTimer: Timer?
     private var hoverDwell = HoverDwellState(duration: 0.120)
 
-    init(store: NoteStore, settings: AppSettings) {
+    init(store: NoteStore, imageStore: ImageStore, settings: AppSettings) {
         self.store = store
+        self.imageStore = imageStore
         self.settings = settings
         compactPanel = Self.makePanel()
         expandedPanel = Self.makePanel()
@@ -58,7 +60,9 @@ final class NotchPanelController {
             self.expand(animated: true)
         }
         compactPanel.contentView = compactView
-        expandedPanel.contentView = NSHostingView(rootView: NotebookView(store: store))
+        expandedPanel.contentView = NSHostingView(
+            rootView: NotebookView(store: store, imageStore: imageStore)
+        )
 
         installEventMonitors()
         startHoverPolling()

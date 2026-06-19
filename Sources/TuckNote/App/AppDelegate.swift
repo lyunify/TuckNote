@@ -20,7 +20,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let imageStore = ImageStore(baseDirectory: baseDirectory)
         let noteStore = NoteStore(storage: storage)
         let settings = AppSettings()
-        let panelController = NotchPanelController(store: noteStore, settings: settings)
+        let panelController = NotchPanelController(
+            store: noteStore,
+            imageStore: imageStore,
+            settings: settings
+        )
 
         self.storage = storage
         self.imageStore = imageStore

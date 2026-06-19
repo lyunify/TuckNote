@@ -82,6 +82,10 @@ final class NoteStore: ObservableObject {
         scheduleSave()
     }
 
+    func showNotice(_ message: String) {
+        notice = message
+    }
+
     func flush() async {
         while isSaving || isDirty {
             saveTask?.cancel()

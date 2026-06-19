@@ -18,6 +18,7 @@ struct CompactNotchView: View {
 
 struct NotebookView: View {
     @ObservedObject var store: NoteStore
+    let imageStore: ImageStore
 
     private var markdown: Binding<String> {
         Binding(
@@ -60,11 +61,21 @@ struct NotebookView: View {
             .frame(height: TuckNoteTheme.toolbarHeight)
             .foregroundStyle(TuckNoteTheme.paper)
 
-            TextEditor(text: markdown)
-                .font(.system(size: TuckNoteTheme.bodyFontSize, design: .rounded))
-                .foregroundStyle(TuckNoteTheme.ink)
-                .scrollContentBackground(.hidden)
-                .padding(TuckNoteTheme.editorPadding)
+            MarkdownEditorView(
+                text: markdown,
+                documentID: store.activePage.id.uuidString,
+                imageStore: imageStore,
+                initialSelection: NSRange(
+                    location: store.activePage.selectionLocation,
+                    length: store.activePage.selectionLength
+                ),
+                onSelectionChange: { range in
+                    store.updateSelection(location: range.location, length: range.length)
+                },
+                onImagePasteError: {
+                    store.showNotice("Could not save pasted image.")
+                }
+            )
                 .background(TuckNoteTheme.paper)
                 .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius))
 
