@@ -25,7 +25,7 @@ final class KeyboardShortcutsRegistrar: GlobalShortcutRegistering {
 }
 
 @MainActor
-final class GlobalShortcutService {
+public final class GlobalShortcutService {
     private let registrar: any GlobalShortcutRegistering
     private var isStarted = false
 
@@ -33,7 +33,7 @@ final class GlobalShortcutService {
         self.registrar = registrar
     }
 
-    func start(onToggle: @escaping () -> Void) {
+    public func start(onToggle: @escaping () -> Void) {
         if isStarted {
             registrar.removeKeyUpHandler()
         }
@@ -41,7 +41,7 @@ final class GlobalShortcutService {
         isStarted = true
     }
 
-    func stop() {
+    public func stop() {
         guard isStarted else { return }
         registrar.removeKeyUpHandler()
         isStarted = false
