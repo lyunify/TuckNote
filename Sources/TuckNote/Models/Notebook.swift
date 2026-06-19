@@ -23,18 +23,36 @@ struct Notebook: Codable, Equatable, Sendable {
     static let currentSchemaVersion = 1
     static let maximumPageCount = 5
     var schemaVersion: Int
-    var pages: [NotePage]
-    var activePageID: UUID
+    private var storedPages: [NotePage]
+    private var storedActivePageID: UUID
+    var pages: [NotePage] {
+        get { storedPages }
+        set {
+            storedPages = Self.normalizedPages(newValue)
+            if !storedPages.contains(where: { $0.id == storedActivePageID }) {
+                storedActivePageID = storedPages[0].id
+            }
+        }
+    }
+    var activePageID: UUID {
+        get { storedActivePageID }
+        set {
+            if storedPages.contains(where: { $0.id == newValue }) {
+                storedActivePageID = newValue
+            }
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, pages, activePageID
+    }
 
     init(schemaVersion: Int, pages: [NotePage], activePageID: UUID) {
         self.schemaVersion = schemaVersion
-        self.pages = Array(pages.prefix(Self.maximumPageCount))
-        if self.pages.isEmpty {
-            self.pages = [NotePage()]
-        }
-        self.activePageID = self.pages.contains(where: { $0.id == activePageID })
+        storedPages = Self.normalizedPages(pages)
+        storedActivePageID = storedPages.contains(where: { $0.id == activePageID })
             ? activePageID
-            : self.pages[0].id
+            : storedPages[0].id
     }
 
     init(from decoder: Decoder) throws {
@@ -44,6 +62,13 @@ struct Notebook: Codable, Equatable, Sendable {
             pages: try container.decode([NotePage].self, forKey: .pages),
             activePageID: try container.decode(UUID.self, forKey: .activePageID)
         )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(storedPages, forKey: .pages)
+        try container.encode(storedActivePageID, forKey: .activePageID)
     }
 
     static func blank() -> Notebook {
@@ -59,13 +84,18 @@ struct Notebook: Codable, Equatable, Sendable {
     }
 
     mutating func removePage(id: UUID) {
+        guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
         guard pages.count > 1 else {
             pages[0] = NotePage(id: pages[0].id)
             activePageID = pages[0].id
             return
         }
-        guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
         pages.remove(at: index)
         activePageID = pages[min(index, pages.count - 1)].id
+    }
+
+    private static func normalizedPages(_ pages: [NotePage]) -> [NotePage] {
+        let pages = Array(pages.prefix(maximumPageCount))
+        return pages.isEmpty ? [NotePage()] : pages
     }
 }

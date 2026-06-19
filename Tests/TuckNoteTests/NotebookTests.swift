@@ -76,4 +76,45 @@ final class NotebookTests: XCTestCase {
         XCTAssertEqual(notebook.pages.count, Notebook.maximumPageCount)
         XCTAssertEqual(notebook.activePageID, pages[0].id)
     }
+
+    func testAssigningEmptyPagesRecoversOneBlankActivePage() {
+        var notebook = Notebook.blank()
+
+        notebook.pages = []
+
+        XCTAssertEqual(notebook.pages.count, 1)
+        XCTAssertEqual(notebook.activePageID, notebook.pages.first?.id)
+        XCTAssertEqual(notebook.pages.first?.markdown, "")
+    }
+
+    func testAssigningMoreThanMaximumPagesKeepsFirstFiveAndValidActivePage() {
+        var notebook = Notebook.blank()
+        let pages = (0...Notebook.maximumPageCount).map { _ in NotePage() }
+
+        notebook.pages = pages
+
+        XCTAssertEqual(notebook.pages.count, Notebook.maximumPageCount)
+        XCTAssertEqual(notebook.activePageID, pages[0].id)
+        XCTAssertTrue(notebook.pages.contains { $0.id == notebook.activePageID })
+    }
+
+    func testRemovingUnknownIDFromSinglePageNotebookIsNoOp() {
+        var notebook = Notebook.blank()
+        notebook.pages[0].markdown = "keep me"
+        let original = notebook
+
+        notebook.removePage(id: UUID())
+
+        XCTAssertEqual(notebook, original)
+    }
+
+    func testAssigningUnknownActivePageIDKeepsAValidActivePage() {
+        var notebook = Notebook.blank()
+        let originalActivePageID = notebook.activePageID
+
+        notebook.activePageID = UUID()
+
+        XCTAssertEqual(notebook.activePageID, originalActivePageID)
+        XCTAssertTrue(notebook.pages.contains { $0.id == notebook.activePageID })
+    }
 }
