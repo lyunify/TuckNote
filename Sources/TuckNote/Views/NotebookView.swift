@@ -7,8 +7,11 @@ struct CompactNotchView: View {
             .overlay(alignment: .bottom) {
                 Capsule()
                     .fill(TuckNoteTheme.shellHighlight)
-                    .frame(width: 38, height: 3)
-                    .padding(.bottom, 5)
+                    .frame(
+                        width: TuckNoteTheme.compactHandleWidth,
+                        height: TuckNoteTheme.compactHandleHeight
+                    )
+                    .padding(.bottom, TuckNoteTheme.compactHandleBottomPadding)
             }
     }
 }
@@ -24,16 +27,21 @@ struct NotebookView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 8) {
+        VStack(spacing: TuckNoteTheme.shellVerticalSpacing) {
+            HStack(spacing: TuckNoteTheme.toolbarSpacing) {
                 ForEach(store.notebook.pages) { page in
                     Button {
                         store.selectPage(page.id)
                     } label: {
-                        Circle()
+                        Capsule()
                             .fill(page.id == store.notebook.activePageID
                                   ? TuckNoteTheme.paper : TuckNoteTheme.shellHighlight)
-                            .frame(width: 9, height: 9)
+                            .frame(
+                                width: page.id == store.notebook.activePageID
+                                    ? TuckNoteTheme.activePageIndicatorWidth
+                                    : TuckNoteTheme.pageIndicatorSize,
+                                height: TuckNoteTheme.pageIndicatorSize
+                            )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Page \(pageNumber(for: page))")
@@ -49,15 +57,16 @@ struct NotebookView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Settings")
             }
+            .frame(height: TuckNoteTheme.toolbarHeight)
             .foregroundStyle(TuckNoteTheme.paper)
 
             TextEditor(text: markdown)
-                .font(.system(size: 15, design: .rounded))
+                .font(.system(size: TuckNoteTheme.bodyFontSize, design: .rounded))
                 .foregroundStyle(TuckNoteTheme.ink)
                 .scrollContentBackground(.hidden)
-                .padding(10)
+                .padding(TuckNoteTheme.editorPadding)
                 .background(TuckNoteTheme.paper)
-                .clipShape(RoundedRectangle(cornerRadius: 13))
+                .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius))
 
             if let notice = store.notice {
                 Text(notice)
@@ -66,7 +75,8 @@ struct NotebookView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(TuckNoteTheme.contentPadding)
+        .padding(.horizontal, TuckNoteTheme.shellHorizontalPadding)
+        .padding(.vertical, TuckNoteTheme.shellVerticalPadding)
         .background(TuckNoteTheme.shell)
         .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.expandedCornerRadius))
     }

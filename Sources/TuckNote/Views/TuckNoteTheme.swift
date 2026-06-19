@@ -8,6 +8,18 @@ enum TuckNoteTheme {
     static let mutedInk = Color(red: 0.45, green: 0.31, blue: 0.33)
     static let compactCornerRadius: CGFloat = 11
     static let expandedCornerRadius: CGFloat = 22
-    static let contentPadding: CGFloat = 18
+    static let compactHandleWidth: CGFloat = 38
+    static let compactHandleHeight: CGFloat = 3
+    static let compactHandleBottomPadding: CGFloat = 5
+    static let shellHorizontalPadding: CGFloat = 18
+    static let shellVerticalPadding: CGFloat = 18
+    static let shellVerticalSpacing: CGFloat = 12
+    static let toolbarSpacing: CGFloat = 8
+    static let toolbarHeight: CGFloat = 28
     static let controlSize: CGFloat = 28
+    static let pageIndicatorSize: CGFloat = 9
+    static let activePageIndicatorWidth: CGFloat = 18
+    static let bodyFontSize: CGFloat = 15
+    static let editorPadding: CGFloat = 10
+    static let editorCornerRadius: CGFloat = 13
 }
