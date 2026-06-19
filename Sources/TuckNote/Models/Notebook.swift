@@ -26,6 +26,26 @@ struct Notebook: Codable, Equatable, Sendable {
     var pages: [NotePage]
     var activePageID: UUID
 
+    init(schemaVersion: Int, pages: [NotePage], activePageID: UUID) {
+        self.schemaVersion = schemaVersion
+        self.pages = Array(pages.prefix(Self.maximumPageCount))
+        if self.pages.isEmpty {
+            self.pages = [NotePage()]
+        }
+        self.activePageID = self.pages.contains(where: { $0.id == activePageID })
+            ? activePageID
+            : self.pages[0].id
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            schemaVersion: try container.decode(Int.self, forKey: .schemaVersion),
+            pages: try container.decode([NotePage].self, forKey: .pages),
+            activePageID: try container.decode(UUID.self, forKey: .activePageID)
+        )
+    }
+
     static func blank() -> Notebook {
         let page = NotePage()
         return Notebook(schemaVersion: currentSchemaVersion, pages: [page], activePageID: page.id)

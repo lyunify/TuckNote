@@ -1,0 +1,42 @@
+{
+  "originHash" : "89d8e908e51c1ee9ea57ab13e5ea6e4a505fc084f2e2ee99b0ff68af419b33de",
+  "pins" : [
+    {
+      "identity" : "highlighterswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/smittytone/HighlighterSwift",
+      "state" : {
+        "revision" : "fe7aae9c9b31d3b296fd3d2dd575e1a207bb29e0",
+        "version" : "3.1.0"
+      }
+    },
+    {
+      "identity" : "keyboardshortcuts",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sindresorhus/KeyboardShortcuts",
+      "state" : {
+        "revision" : "1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27",
+        "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "swift-markdown-engine",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nodes-app/swift-markdown-engine",
+      "state" : {
+        "revision" : "301c4a554f87eb473ee649eb588250cca7918125",
+        "version" : "0.7.0"
+      }
+    },
+    {
+      "identity" : "swiftmath",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mgriebling/SwiftMath",
+      "state" : {
+        "revision" : "fa8244ed032f4a1ade4cb0571bf87d2f1a9fd2d7",
+        "version" : "1.7.3"
+      }
+    }
+  ],
+  "version" : 3
+}
