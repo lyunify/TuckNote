@@ -10,6 +10,8 @@ final class NoteStore: ObservableObject {
     private let storage: any NotebookStorage
     private let saveDelay: ContinuousClock.Duration
     private var saveTask: Task<Void, Never>?
+    private var isDirty = false
+    private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(
         storage: any NotebookStorage,
@@ -27,6 +29,7 @@ final class NoteStore: ObservableObject {
     func load() async {
         saveTask?.cancel()
         saveTask = nil
+        isDirty = false
         notice = nil
 
         do {
@@ -80,9 +83,16 @@ final class NoteStore: ObservableObject {
     }
 
     func flush() async {
-        saveTask?.cancel()
-        saveTask = nil
-        await saveNow()
+        while isSaving || isDirty {
+            saveTask?.cancel()
+            saveTask = nil
+
+            if isSaving {
+                await waitForSaveCompletion()
+            } else {
+                await saveIfNeeded()
+            }
+        }
     }
 
     private var activePageIndex: Int? {
@@ -100,6 +110,7 @@ final class NoteStore: ObservableObject {
     }
 
     private func scheduleSave() {
+        isDirty = true
         saveTask?.cancel()
         let delay = saveDelay
         saveTask = Task { [weak self] in
@@ -110,18 +121,34 @@ final class NoteStore: ObservableObject {
             }
             guard !Task.isCancelled, let self else { return }
             self.saveTask = nil
-            await self.saveNow()
+            await self.saveIfNeeded()
         }
     }
 
-    private func saveNow() async {
+    private func saveIfNeeded() async {
+        guard !isSaving, isDirty else { return }
+        isDirty = false
         isSaving = true
-        defer { isSaving = false }
+        let snapshot = notebook
 
         do {
-            try await storage.save(notebook)
+            try await storage.save(snapshot)
         } catch {
             notice = "Could not save notes."
         }
+
+        isSaving = false
+        let waiters = saveCompletionWaiters
+        saveCompletionWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+
+        if isDirty {
+            scheduleSave()
+        }
+    }
+
+    private func waitForSaveCompletion() async {
+        guard isSaving else { return }
+        await withCheckedContinuation { saveCompletionWaiters.append($0) }
     }
 }
