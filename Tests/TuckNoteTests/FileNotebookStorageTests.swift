@@ -28,7 +28,8 @@ final class FileNotebookStorageTests: XCTestCase {
         let directory = temporaryDirectory(named: #function)
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data("not-json".utf8).write(to: directory.appending(path: "notebook.json"))
+        let corruptData = Data("not-json".utf8)
+        try corruptData.write(to: directory.appending(path: "notebook.json"))
         let storage = FileNotebookStorage(
             baseDirectory: directory,
             now: { Date(timeIntervalSince1970: 1_700_000_000) }
@@ -44,7 +45,34 @@ final class FileNotebookStorageTests: XCTestCase {
                 directory.appending(path: "notebook-corrupt-2023-11-14T22:13:20Z.json")
             )
             XCTAssertTrue(FileManager.default.fileExists(atPath: recovered.path))
+            XCTAssertEqual(try Data(contentsOf: recovered), corruptData)
             XCTAssertFalse(FileManager.default.fileExists(atPath: notebookURL.path))
+        }
+    }
+
+    func testCorruptFileRecoveryDoesNotOverwriteExistingRecovery() async throws {
+        let directory = temporaryDirectory(named: #function)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let corruptData = Data([0x00, 0xFF, 0x10, 0x80])
+        try corruptData.write(to: directory.appending(path: "notebook.json"))
+        let existingRecovery = directory.appending(
+            path: "notebook-corrupt-2023-11-14T22:13:20Z.json"
+        )
+        let existingData = Data("earlier recovery".utf8)
+        try existingData.write(to: existingRecovery)
+        let storage = FileNotebookStorage(
+            baseDirectory: directory,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+
+        do {
+            _ = try await storage.load()
+            XCTFail("Expected corruptNotebookRecovered")
+        } catch StorageError.corruptNotebookRecovered(let recovered) {
+            XCTAssertNotEqual(recovered, existingRecovery)
+            XCTAssertEqual(try Data(contentsOf: existingRecovery), existingData)
+            XCTAssertEqual(try Data(contentsOf: recovered), corruptData)
         }
     }
 

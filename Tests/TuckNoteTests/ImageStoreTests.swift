@@ -11,7 +11,8 @@ final class ImageStoreTests: XCTestCase {
         let reference = try store.savePNG(makeImage())
 
         let filename = try XCTUnwrap(filename(from: reference))
-        XCTAssertNotNil(UUID(uuidString: String(filename.dropLast(".png".count))))
+        let identifier = try XCTUnwrap(UUID(uuidString: String(filename.dropLast(".png".count))))
+        XCTAssertEqual(reference, "![[\(identifier.uuidString).png]]")
         let imageURL = directory.appending(path: "Images").appending(path: filename)
         let data = try Data(contentsOf: imageURL)
         XCTAssertNotNil(NSImage(data: data))

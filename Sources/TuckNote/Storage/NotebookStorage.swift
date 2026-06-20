@@ -34,9 +34,11 @@ actor FileNotebookStorage: NotebookStorage {
             return try JSONDecoder().decode(Notebook.self, from: data)
         } catch {
             let formatter = ISO8601DateFormatter()
-            let recovered = baseDirectory.appending(
-                path: "notebook-corrupt-\(formatter.string(from: now())).json"
-            )
+            let recoveryStem = "notebook-corrupt-\(formatter.string(from: now()))"
+            var recovered = baseDirectory.appending(path: "\(recoveryStem).json")
+            if fileManager.fileExists(atPath: recovered.path) {
+                recovered = baseDirectory.appending(path: "\(recoveryStem)-\(UUID().uuidString).json")
+            }
             try fileManager.moveItem(at: notebookURL, to: recovered)
             throw StorageError.corruptNotebookRecovered(recovered)
         }

@@ -126,9 +126,6 @@ final class NoteStoreTests: XCTestCase {
         XCTAssertTrue(store.isSaving)
 
         let flushTask = Task { await store.flush() }
-        for _ in 0..<100 {
-            await Task.yield()
-        }
 
         var snapshot = await storage.snapshot()
         XCTAssertEqual(snapshot.saves.count, 1)
@@ -153,9 +150,6 @@ final class NoteStoreTests: XCTestCase {
 
         store.updateMarkdown("latest")
         let flushTask = Task { await store.flush() }
-        for _ in 0..<100 {
-            await Task.yield()
-        }
 
         var snapshot = await storage.snapshot()
         XCTAssertEqual(snapshot.saves.count, 1)
