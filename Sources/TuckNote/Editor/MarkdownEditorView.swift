@@ -188,7 +188,7 @@ struct MarkdownEditorView: View {
     let onSelectionChange: (NSRange) -> Void
     let onImagePasteError: () -> Void
 
-    @State private var selection: NSRange
+    @State private var selectionState: EditorSelectionState
     @State private var pendingReplacement: InlineReplacementRequest?
     @State private var requestedSelection: EditorSelectionRequest?
 
@@ -210,7 +210,10 @@ struct MarkdownEditorView: View {
         self.initialSelection = initialSelection
         self.onSelectionChange = onSelectionChange
         self.onImagePasteError = onImagePasteError
-        _selection = State(initialValue: initialSelection)
+        _selectionState = State(initialValue: EditorSelectionState(
+            documentID: documentID,
+            selection: initialSelection
+        ))
     }
 
     var body: some View {
@@ -236,6 +239,11 @@ struct MarkdownEditorView: View {
             )
         }
         .background(Color(nsColor: appearance.surface))
+        .onChange(of: documentID) {
+            selectionState.synchronize(documentID: documentID, selection: initialSelection)
+            pendingReplacement = nil
+            requestedSelection = nil
+        }
     }
 
     private var toolbar: some View {
@@ -298,7 +306,7 @@ struct MarkdownEditorView: View {
             guard let edit = MarkdownSelectionEdit.make(
                 command: command,
                 text: text,
-                selection: selection
+                selection: selectionState.selection
             ) else { return }
             requestedSelection = EditorSelectionRequest(
                 documentID: documentID,
@@ -326,8 +334,19 @@ struct MarkdownEditorView: View {
     }
 
     private func selectionChanged(_ range: NSRange) {
-        selection = range
+        selectionState.selection = range
         onSelectionChange(range)
+    }
+}
+
+struct EditorSelectionState: Equatable {
+    private(set) var documentID: String
+    var selection: NSRange
+
+    mutating func synchronize(documentID: String, selection: NSRange) {
+        guard self.documentID != documentID else { return }
+        self.documentID = documentID
+        self.selection = selection
     }
 }
 

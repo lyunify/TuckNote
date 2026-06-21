@@ -57,9 +57,25 @@ struct Notebook: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard schemaVersion == Self.currentSchemaVersion else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .schemaVersion,
+                in: container,
+                debugDescription: "Unsupported notebook schema version \(schemaVersion)."
+            )
+        }
+        let pages = try container.decode([NotePage].self, forKey: .pages)
+        guard (1...Self.maximumPageCount).contains(pages.count) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .pages,
+                in: container,
+                debugDescription: "Notebook page count must be between 1 and \(Self.maximumPageCount)."
+            )
+        }
         self.init(
-            schemaVersion: try container.decode(Int.self, forKey: .schemaVersion),
-            pages: try container.decode([NotePage].self, forKey: .pages),
+            schemaVersion: schemaVersion,
+            pages: pages,
             activePageID: try container.decode(UUID.self, forKey: .activePageID)
         )
     }

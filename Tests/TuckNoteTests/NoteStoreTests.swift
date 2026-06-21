@@ -6,6 +6,7 @@ actor StoreStorageSpy: NotebookStorage {
     var loaded: Result<Notebook, Error>
     private var saved: [Notebook] = []
     private var saveError: Error?
+    private var saveAttempts = 0
 
     init(loaded: Result<Notebook, Error> = .success(.blank()), saveError: Error? = nil) {
         self.loaded = loaded
@@ -17,8 +18,17 @@ actor StoreStorageSpy: NotebookStorage {
     }
 
     func save(_ notebook: Notebook) async throws {
+        saveAttempts += 1
         if let saveError { throw saveError }
         saved.append(notebook)
+    }
+
+    func setSaveError(_ error: Error?) {
+        saveError = error
+    }
+
+    func attemptCount() -> Int {
+        saveAttempts
     }
 
     func savedNotebooks() -> [Notebook] {
@@ -139,7 +149,7 @@ final class NoteStoreTests: XCTestCase {
         XCTAssertTrue(store.isSaving)
 
         await storage.releaseAllSaves()
-        await flushTask.value
+        _ = await flushTask.value
 
         snapshot = await storage.snapshot()
         XCTAssertEqual(snapshot.saves.count, 1)
@@ -172,7 +182,7 @@ final class NoteStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.maximumActive, 1)
         XCTAssertEqual(snapshot.saves[1].pages[0].markdown, "latest")
         await storage.releaseNextSave()
-        await flushTask.value
+        _ = await flushTask.value
         XCTAssertFalse(store.isSaving)
     }
 
@@ -225,10 +235,35 @@ final class NoteStoreTests: XCTestCase {
         await store.load()
         store.updateMarkdown("unsaved")
 
-        await store.flush()
+        let didFlush = await store.flush()
 
         XCTAssertNotNil(store.notice)
         XCTAssertFalse(store.isSaving)
+        XCTAssertFalse(didFlush)
+        let failedAttemptCount = await storage.attemptCount()
+        XCTAssertEqual(failedAttemptCount, 1)
+
+        await storage.setSaveError(nil)
+        let retryDidFlush = await store.flush()
+        let finalAttemptCount = await storage.attemptCount()
+        let savedNotebooks = await storage.savedNotebooks()
+        XCTAssertTrue(retryDidFlush)
+        XCTAssertEqual(finalAttemptCount, 2)
+        XCTAssertEqual(savedNotebooks.first?.pages[0].markdown, "unsaved")
+    }
+
+    func testLoadStateOnlyBecomesReadyAfterStorageFinishesLoading() async {
+        let storage = SuspendingLoadStorage()
+        let store = NoteStore(storage: storage)
+
+        let loadTask = Task { await store.load() }
+        await storage.waitUntilLoadStarts()
+        XCTAssertFalse(store.isLoaded)
+
+        await storage.releaseLoad()
+        await loadTask.value
+
+        XCTAssertTrue(store.isLoaded)
     }
 
     func testDismissNoticeClearsCurrentNotice() async {
@@ -239,5 +274,31 @@ final class NoteStoreTests: XCTestCase {
         store.dismissNotice()
 
         XCTAssertNil(store.notice)
+    }
+}
+
+actor SuspendingLoadStorage: NotebookStorage {
+    private var didStart = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var loadContinuation: CheckedContinuation<Void, Never>?
+
+    func load() async throws -> Notebook {
+        didStart = true
+        startWaiters.forEach { $0.resume() }
+        startWaiters.removeAll()
+        await withCheckedContinuation { loadContinuation = $0 }
+        return .blank()
+    }
+
+    func save(_ notebook: Notebook) async throws {}
+
+    func waitUntilLoadStarts() async {
+        guard !didStart else { return }
+        await withCheckedContinuation { startWaiters.append($0) }
+    }
+
+    func releaseLoad() {
+        loadContinuation?.resume()
+        loadContinuation = nil
     }
 }

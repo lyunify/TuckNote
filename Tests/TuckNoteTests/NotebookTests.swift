@@ -31,21 +31,45 @@ final class NotebookTests: XCTestCase {
         XCTAssertEqual(notebook.pages[0].markdown, "")
     }
 
-    func testDecodingEmptyPagesRecoversOneBlankActivePage() throws {
+    func testDecodingEmptyPagesIsRejected() throws {
         let payload = NotebookPayload(
             schemaVersion: Notebook.currentSchemaVersion,
             pages: [],
             activePageID: UUID()
         )
 
-        let notebook = try JSONDecoder().decode(
+        XCTAssertThrowsError(try JSONDecoder().decode(
             Notebook.self,
             from: JSONEncoder().encode(payload)
+        ))
+    }
+
+    func testDecodingFutureSchemaVersionIsRejected() throws {
+        let page = NotePage()
+        let payload = NotebookPayload(
+            schemaVersion: Notebook.currentSchemaVersion + 1,
+            pages: [page],
+            activePageID: page.id
         )
 
-        XCTAssertEqual(notebook.pages.count, 1)
-        XCTAssertEqual(notebook.activePageID, notebook.pages.first?.id)
-        XCTAssertEqual(notebook.pages.first?.markdown, "")
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            Notebook.self,
+            from: JSONEncoder().encode(payload)
+        ))
+    }
+
+    func testDecodingMoreThanMaximumPagesIsRejected() throws {
+        let pages = (0...Notebook.maximumPageCount).map { _ in NotePage() }
+        let payload = NotebookPayload(
+            schemaVersion: Notebook.currentSchemaVersion,
+            pages: pages,
+            activePageID: pages[0].id
+        )
+
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            Notebook.self,
+            from: JSONEncoder().encode(payload)
+        ))
     }
 
     func testDecodingInvalidActivePageIDActivatesFirstPage() throws {

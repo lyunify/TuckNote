@@ -22,6 +22,10 @@ final class PanelPresentationTests: XCTestCase {
         XCTAssertEqual(PanelPresentation.expanded.toggled, .compact)
     }
 
+    func testStatusMenuShowPresentsTheKeyboardAccessibleEditor() {
+        XCTAssertEqual(PanelPresentation.statusMenuShow, .expanded)
+    }
+
     func testHoverDwellTriggersAfter120MillisecondsInside() {
         var dwell = HoverDwellState(duration: 0.120)
 

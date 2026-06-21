@@ -9,6 +9,7 @@ enum PanelPresentation: Equatable {
     var showsCompactPanel: Bool { self == .compact }
     var showsExpandedPanel: Bool { self == .expanded }
     var toggled: Self { self == .compact ? .expanded : .compact }
+    static let statusMenuShow = Self.expanded
 }
 
 struct HoverDwellState {
@@ -120,11 +121,13 @@ final class NotchPanelController {
     }
 
     func showCompact() {
+        guard store.isLoaded else { return }
         presentation = .compact
         applyPresentation(animated: false)
     }
 
     func expand(animated: Bool) {
+        guard store.isLoaded else { return }
         guard presentation != .expanded || !expandedPanel.isVisible else { return }
         presentation = .expanded
         applyPresentation(animated: animated)
@@ -137,6 +140,7 @@ final class NotchPanelController {
     }
 
     func toggle() {
+        guard store.isLoaded else { return }
         presentation = presentation.toggled
         applyPresentation(animated: true)
     }

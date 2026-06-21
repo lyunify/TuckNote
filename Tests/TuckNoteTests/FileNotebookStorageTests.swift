@@ -76,6 +76,26 @@ final class FileNotebookStorageTests: XCTestCase {
         }
     }
 
+    func testUnsupportedSchemaFileIsPreservedForRecovery() async throws {
+        let directory = temporaryDirectory(named: #function)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let notebookURL = directory.appending(path: "notebook.json")
+        let data = Data("""
+        {"schemaVersion":2,"pages":[],"activePageID":"00000000-0000-0000-0000-000000000000"}
+        """.utf8)
+        try data.write(to: notebookURL)
+        let storage = FileNotebookStorage(baseDirectory: directory)
+
+        do {
+            _ = try await storage.load()
+            XCTFail("Expected corruptNotebookRecovered")
+        } catch StorageError.corruptNotebookRecovered(let recovered) {
+            XCTAssertEqual(try Data(contentsOf: recovered), data)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: notebookURL.path))
+        }
+    }
+
     private func temporaryDirectory(named testName: String) -> URL {
         let directoryName = testName.replacingOccurrences(of: "()", with: "")
         let directory = FileManager.default.temporaryDirectory

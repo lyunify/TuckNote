@@ -3,6 +3,35 @@ import XCTest
 @testable import TuckNote
 
 final class MarkdownEditorTests: XCTestCase {
+    func testPageSwitchResetsToolbarSelectionToIncomingPageSelection() {
+        var state = EditorSelectionState(
+            documentID: "first",
+            selection: NSRange(location: 8, length: 2)
+        )
+
+        state.synchronize(
+            documentID: "second",
+            selection: NSRange(location: 1, length: 3)
+        )
+
+        XCTAssertEqual(state.documentID, "second")
+        XCTAssertEqual(state.selection, NSRange(location: 1, length: 3))
+    }
+
+    func testSamePageRefreshDoesNotDiscardCurrentToolbarSelection() {
+        var state = EditorSelectionState(
+            documentID: "first",
+            selection: NSRange(location: 8, length: 2)
+        )
+
+        state.synchronize(
+            documentID: "first",
+            selection: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertEqual(state.selection, NSRange(location: 8, length: 2))
+    }
+
     @MainActor
     func testEditorAppearanceAppliesExactSurfaceToNativeTextAndScrollViews() throws {
         let scrollView = NSScrollView()

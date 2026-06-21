@@ -45,8 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let noteStore else { return .terminateNow }
         Task {
-            await noteStore.flush()
-            sender.reply(toApplicationShouldTerminate: true)
+            let didFlush = await noteStore.flush()
+            sender.reply(toApplicationShouldTerminate: didFlush)
         }
         return .terminateLater
     }
@@ -73,7 +73,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showPanel() {
         NSApp.unhide(nil)
-        panelController?.showCompact()
+        switch PanelPresentation.statusMenuShow {
+        case .compact:
+            panelController?.showCompact()
+        case .expanded:
+            panelController?.expand(animated: true)
+        }
     }
 
     @objc private func hidePanel() {

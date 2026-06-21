@@ -6,13 +6,14 @@ final class NoteStore: ObservableObject {
     @Published private(set) var notebook: Notebook
     @Published private(set) var notice: String?
     @Published private(set) var isSaving = false
+    @Published private(set) var isLoaded = false
 
     private let storage: any NotebookStorage
     private let saveDelay: ContinuousClock.Duration
     private let onFlushWaitingForSave: (() -> Void)?
     private var saveTask: Task<Void, Never>?
     private var isDirty = false
-    private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
+    private var saveCompletionWaiters: [CheckedContinuation<Bool, Never>] = []
 
     init(
         storage: any NotebookStorage,
@@ -33,7 +34,9 @@ final class NoteStore: ObservableObject {
         saveTask?.cancel()
         saveTask = nil
         isDirty = false
+        isLoaded = false
         notice = nil
+        defer { isLoaded = true }
 
         do {
             notebook = try await storage.load()
@@ -93,17 +96,19 @@ final class NoteStore: ObservableObject {
         notice = nil
     }
 
-    func flush() async {
+    @discardableResult
+    func flush() async -> Bool {
         while isSaving || isDirty {
             saveTask?.cancel()
             saveTask = nil
 
             if isSaving {
-                await waitForSaveCompletion()
+                guard await waitForSaveCompletion() else { return false }
             } else {
-                await saveIfNeeded()
+                guard await saveIfNeeded() else { return false }
             }
         }
+        return true
     }
 
     private var activePageIndex: Int? {
@@ -132,35 +137,40 @@ final class NoteStore: ObservableObject {
             }
             guard !Task.isCancelled, let self else { return }
             self.saveTask = nil
-            await self.saveIfNeeded()
+            _ = await self.saveIfNeeded()
         }
     }
 
-    private func saveIfNeeded() async {
-        guard !isSaving, isDirty else { return }
+    private func saveIfNeeded() async -> Bool {
+        guard !isSaving, isDirty else { return true }
         isDirty = false
         isSaving = true
         let snapshot = notebook
 
+        let didSave: Bool
         do {
             try await storage.save(snapshot)
+            didSave = true
         } catch {
+            isDirty = true
             notice = "Could not save notes."
+            didSave = false
         }
 
         isSaving = false
         let waiters = saveCompletionWaiters
         saveCompletionWaiters.removeAll()
-        waiters.forEach { $0.resume() }
+        waiters.forEach { $0.resume(returning: didSave) }
 
-        if isDirty {
+        if didSave, isDirty {
             scheduleSave()
         }
+        return didSave
     }
 
-    private func waitForSaveCompletion() async {
-        guard isSaving else { return }
-        await withCheckedContinuation {
+    private func waitForSaveCompletion() async -> Bool {
+        guard isSaving else { return true }
+        return await withCheckedContinuation {
             saveCompletionWaiters.append($0)
             onFlushWaitingForSave?()
         }
