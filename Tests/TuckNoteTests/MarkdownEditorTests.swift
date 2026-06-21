@@ -211,6 +211,75 @@ final class MarkdownEditorTests: XCTestCase {
         XCTAssertNil(reportedError)
     }
 
+    func testImageFileDropReturnsSavedReference() throws {
+        let imageURL = URL(fileURLWithPath: "/tmp/dropped.png")
+        let sourceImage = NSImage(size: NSSize(width: 2, height: 2))
+        var loadedURL: URL?
+        var savedImage: NSImage?
+
+        let reference = MarkdownImageDrop.reference(
+            from: [imageURL],
+            loadImage: { url in
+                loadedURL = url
+                return sourceImage
+            },
+            save: {
+                savedImage = $0
+                return "![[dropped.png]]"
+            },
+            onError: { _ in XCTFail("Unexpected drop error") }
+        )
+
+        XCTAssertEqual(reference, "![[dropped.png]]")
+        XCTAssertEqual(loadedURL, imageURL)
+        XCTAssertNotNil(savedImage)
+    }
+
+    func testNonImageFileDropFallsThrough() {
+        let textURL = URL(fileURLWithPath: "/tmp/notes.txt")
+        var didLoad = false
+        var didSave = false
+
+        let reference = MarkdownImageDrop.reference(
+            from: [textURL],
+            loadImage: { _ in
+                didLoad = true
+                return NSImage(size: NSSize(width: 2, height: 2))
+            },
+            save: { _ in
+                didSave = true
+                return "![[unexpected.png]]"
+            },
+            onError: { _ in XCTFail("Unexpected drop error") }
+        )
+
+        XCTAssertNil(reference)
+        XCTAssertFalse(didLoad)
+        XCTAssertFalse(didSave)
+    }
+
+    func testImageDropCreatesStandaloneBlockAtDropLocation() throws {
+        let edit = try XCTUnwrap(MarkdownImageDropEdit.make(
+            reference: "![[dropped.png]]",
+            text: "beforeafter",
+            insertionLocation: 6
+        ))
+
+        XCTAssertEqual(edit.range, NSRange(location: 6, length: 0))
+        XCTAssertEqual(edit.replacement, "\n![[dropped.png]]\n")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 24, length: 0))
+    }
+
+    func testImageDropTreatsCarriageReturnAsBlockBoundary() throws {
+        let edit = try XCTUnwrap(MarkdownImageDropEdit.make(
+            reference: "![[dropped.png]]",
+            text: "before\rafter",
+            insertionLocation: 7
+        ))
+
+        XCTAssertEqual(edit.replacement, "![[dropped.png]]\n")
+    }
+
     @MainActor
     func testSelectionCoordinatorObservesAndRestoresOnlyItsAssociatedEditor() {
         let window = NSWindow(

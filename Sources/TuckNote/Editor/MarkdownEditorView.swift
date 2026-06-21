@@ -1,6 +1,7 @@
 import AppKit
 import MarkdownEngine
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum MarkdownToolbarCommand: String, CaseIterable, Identifiable {
     case bold
@@ -160,6 +161,67 @@ enum MarkdownImagePaste {
     }
 }
 
+enum MarkdownImageDrop {
+    static func reference(
+        from urls: [URL],
+        loadImage: (URL) -> NSImage? = { NSImage(contentsOf: $0) },
+        save: (NSImage) throws -> String,
+        onError: (Error) -> Void
+    ) -> String? {
+        guard let url = urls.first(where: isImageFile),
+              let image = loadImage(url) else {
+            return nil
+        }
+        do {
+            return try save(image)
+        } catch {
+            onError(error)
+            return nil
+        }
+    }
+
+    private static func isImageFile(_ url: URL) -> Bool {
+        guard url.isFileURL,
+              let type = UTType(filenameExtension: url.pathExtension) else {
+            return false
+        }
+        return type.conforms(to: .image)
+    }
+}
+
+struct MarkdownImageDropEdit: Equatable {
+    let range: NSRange
+    let replacement: String
+    let selectedRange: NSRange
+
+    static func make(
+        reference: String,
+        text: String,
+        insertionLocation: Int
+    ) -> Self? {
+        let nsText = text as NSString
+        guard insertionLocation >= 0, insertionLocation <= nsText.length else { return nil }
+
+        let prefix = insertionLocation > 0
+            && !isLineBreak(nsText.character(at: insertionLocation - 1)) ? "\n" : ""
+        let suffix = insertionLocation < nsText.length
+            && !isLineBreak(nsText.character(at: insertionLocation)) ? "\n" : ""
+        let replacement = prefix + reference + suffix
+        return Self(
+            range: NSRange(location: insertionLocation, length: 0),
+            replacement: replacement,
+            selectedRange: NSRange(
+                location: insertionLocation + (replacement as NSString).length,
+                length: 0
+            )
+        )
+    }
+
+    private static func isLineBreak(_ character: unichar) -> Bool {
+        character == 0x0A || character == 0x0D
+    }
+}
+
 @MainActor
 struct MarkdownEditorAppearance {
     let surface: NSColor
@@ -234,6 +296,7 @@ struct MarkdownEditorView: View {
                     initialSelection: initialSelection,
                     requestedSelection: requestedSelection,
                     appearance: appearance,
+                    onDropImage: dropImage,
                     onSelectionChange: selectionChanged
                 )
             )
@@ -333,6 +396,15 @@ struct MarkdownEditorView: View {
         )
     }
 
+    private func dropImage(_ pasteboard: NSPasteboard) -> String? {
+        guard let url = PasteboardImageReader.imageFileURL(from: pasteboard) else { return nil }
+        return MarkdownImageDrop.reference(
+            from: [url],
+            save: imageStore.savePNG,
+            onError: { _ in onImagePasteError() }
+        )
+    }
+
     private func selectionChanged(_ range: NSRange) {
         selectionState.selection = range
         onSelectionChange(range)
@@ -383,10 +455,15 @@ private struct TextSelectionMonitor: NSViewRepresentable {
     let initialSelection: NSRange
     let requestedSelection: EditorSelectionRequest?
     let appearance: MarkdownEditorAppearance
+    let onDropImage: (NSPasteboard) -> String?
     let onSelectionChange: (NSRange) -> Void
 
     func makeCoordinator() -> Coordinator {
-        TextSelectionCoordinator(appearance: appearance, onSelectionChange: onSelectionChange)
+        TextSelectionCoordinator(
+            appearance: appearance,
+            onDropImage: onDropImage,
+            onSelectionChange: onSelectionChange
+        )
     }
 
     func makeNSView(context: Context) -> SelectionMonitorView {
@@ -402,6 +479,7 @@ private struct TextSelectionMonitor: NSViewRepresentable {
 
     func updateNSView(_ view: SelectionMonitorView, context: Context) {
         context.coordinator.onSelectionChange = onSelectionChange
+        context.coordinator.onDropImage = onDropImage
         context.coordinator.appearance = appearance
         context.coordinator.attach(
             to: view,
@@ -421,6 +499,7 @@ private struct TextSelectionMonitor: NSViewRepresentable {
 @MainActor
 final class TextSelectionCoordinator: NSObject {
     var onSelectionChange: (NSRange) -> Void
+    var onDropImage: (NSPasteboard) -> String?
     var appearance: MarkdownEditorAppearance
     private(set) weak var textView: NSTextView?
     private(set) var lastAppliedRequestID: UUID?
@@ -431,12 +510,15 @@ final class TextSelectionCoordinator: NSObject {
     private var requestedSelection: EditorSelectionRequest?
     private var needsInitialRestoration = false
     private var suppressSelectionChanges = false
+    private var imageDropView: ImageDropView?
 
     init(
         appearance: MarkdownEditorAppearance = .tuckNote,
+        onDropImage: @escaping (NSPasteboard) -> String? = { _ in nil },
         onSelectionChange: @escaping (NSRange) -> Void
     ) {
         self.appearance = appearance
+        self.onDropImage = onDropImage
         self.onSelectionChange = onSelectionChange
         super.init()
     }
@@ -471,6 +553,7 @@ final class TextSelectionCoordinator: NSObject {
               let associatedTextView = Self.associatedTextView(for: hostView) else { return }
         textView = associatedTextView
         appearance.apply(to: associatedTextView)
+        installImageDropView(for: associatedTextView)
 
         if needsInitialRestoration {
             let range = clamped(initialSelection, to: associatedTextView)
@@ -489,6 +572,8 @@ final class TextSelectionCoordinator: NSObject {
     func stopObserving() {
         NotificationCenter.default.removeObserver(self)
         isObserving = false
+        imageDropView?.removeFromSuperview()
+        imageDropView = nil
         textView = nil
     }
 
@@ -501,6 +586,22 @@ final class TextSelectionCoordinator: NSObject {
             object: nil
         )
         isObserving = true
+    }
+
+    private func installImageDropView(for textView: NSTextView) {
+        guard let scrollView = textView.enclosingScrollView else { return }
+        let dropView = imageDropView ?? ImageDropView()
+        dropView.textView = textView
+        dropView.onDropImage = { [weak self] pasteboard in
+            self?.onDropImage(pasteboard)
+        }
+        dropView.frame = scrollView.contentView.frame
+        dropView.autoresizingMask = [.width, .height]
+        if dropView.superview !== scrollView {
+            dropView.removeFromSuperview()
+            scrollView.addSubview(dropView, positioned: .above, relativeTo: scrollView.contentView)
+        }
+        imageDropView = dropView
     }
 
     @objc private func selectionDidChange(_ notification: Notification) {
@@ -540,6 +641,57 @@ final class TextSelectionCoordinator: NSObject {
             result.append(contentsOf: descendantTextViews(in: subview))
         }
         return result
+    }
+}
+
+@MainActor
+final class ImageDropView: NSView {
+    weak var textView: NSTextView?
+    var onDropImage: (NSPasteboard) -> String? = { _ in nil }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    convenience init() {
+        self.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        PasteboardImageReader.imageFileURL(from: sender.draggingPasteboard) == nil ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        PasteboardImageReader.imageFileURL(from: sender.draggingPasteboard) != nil
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        guard let textView,
+              let reference = onDropImage(sender.draggingPasteboard) else {
+            return false
+        }
+        let point = textView.convert(sender.draggingLocation, from: nil)
+        let insertionLocation = textView.characterIndexForInsertion(at: point)
+        guard let edit = MarkdownImageDropEdit.make(
+            reference: reference,
+            text: textView.string,
+            insertionLocation: insertionLocation
+        ) else {
+            return false
+        }
+        textView.insertText(edit.replacement, replacementRange: edit.range)
+        textView.setSelectedRange(edit.selectedRange)
+        return true
     }
 }
 
