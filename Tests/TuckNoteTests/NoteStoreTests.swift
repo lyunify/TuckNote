@@ -119,13 +119,19 @@ final class NoteStoreTests: XCTestCase {
 
     func testFlushJoinsSuspendedDebouncedSaveWithoutStartingAnother() async {
         let storage = SuspendingStoreStorage()
-        let store = NoteStore(storage: storage, saveDelay: .milliseconds(1))
+        let flushWaiting = expectation(description: "Flush waits for the in-flight save")
+        let store = NoteStore(
+            storage: storage,
+            saveDelay: .milliseconds(1),
+            onFlushWaitingForSave: { flushWaiting.fulfill() }
+        )
         await store.load()
         store.updateMarkdown("current")
         await storage.waitUntilSaveCount(1)
         XCTAssertTrue(store.isSaving)
 
         let flushTask = Task { await store.flush() }
+        await fulfillment(of: [flushWaiting])
 
         var snapshot = await storage.snapshot()
         XCTAssertEqual(snapshot.saves.count, 1)
@@ -143,13 +149,19 @@ final class NoteStoreTests: XCTestCase {
 
     func testEditDuringSuspendedSavePersistsLatestStateWithoutConcurrentSave() async {
         let storage = SuspendingStoreStorage()
-        let store = NoteStore(storage: storage, saveDelay: .milliseconds(1))
+        let flushWaiting = expectation(description: "Flush waits for the in-flight save")
+        let store = NoteStore(
+            storage: storage,
+            saveDelay: .milliseconds(1),
+            onFlushWaitingForSave: { flushWaiting.fulfill() }
+        )
         await store.load()
         store.updateMarkdown("first")
         await storage.waitUntilSaveCount(1)
 
         store.updateMarkdown("latest")
         let flushTask = Task { await store.flush() }
+        await fulfillment(of: [flushWaiting])
 
         var snapshot = await storage.snapshot()
         XCTAssertEqual(snapshot.saves.count, 1)

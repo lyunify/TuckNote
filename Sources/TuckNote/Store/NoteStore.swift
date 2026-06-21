@@ -9,16 +9,19 @@ final class NoteStore: ObservableObject {
 
     private let storage: any NotebookStorage
     private let saveDelay: ContinuousClock.Duration
+    private let onFlushWaitingForSave: (() -> Void)?
     private var saveTask: Task<Void, Never>?
     private var isDirty = false
     private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(
         storage: any NotebookStorage,
-        saveDelay: ContinuousClock.Duration = .milliseconds(500)
+        saveDelay: ContinuousClock.Duration = .milliseconds(500),
+        onFlushWaitingForSave: (() -> Void)? = nil
     ) {
         self.storage = storage
         self.saveDelay = saveDelay
+        self.onFlushWaitingForSave = onFlushWaitingForSave
         notebook = .blank()
     }
 
@@ -157,6 +160,9 @@ final class NoteStore: ObservableObject {
 
     private func waitForSaveCompletion() async {
         guard isSaving else { return }
-        await withCheckedContinuation { saveCompletionWaiters.append($0) }
+        await withCheckedContinuation {
+            saveCompletionWaiters.append($0)
+            onFlushWaitingForSave?()
+        }
     }
 }
