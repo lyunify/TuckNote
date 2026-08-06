@@ -16,12 +16,19 @@ final class TuckNoteThemeTests: XCTestCase {
             TuckNoteTheme.bodyFontSize,
             TuckNoteTheme.editorPadding,
             TuckNoteTheme.editorCornerRadius,
+            TuckNoteTheme.markdownTextInsetHorizontal,
+            TuckNoteTheme.markdownListIndentPerLevel,
             TuckNoteTheme.compactHandleWidth,
             TuckNoteTheme.compactHandleHeight,
             TuckNoteTheme.compactHandleBottomPadding
         ]
 
         XCTAssertTrue(dimensions.allSatisfy { $0 > 0 })
+    }
+
+    func testMarkdownTextInsetIsTightEnoughForLists() {
+        XCTAssertEqual(TuckNoteTheme.markdownTextInsetHorizontal, 12)
+        XCTAssertEqual(TuckNoteTheme.markdownListIndentPerLevel, 4)
     }
 
     func testActivePageIndicatorIsWiderThanInactiveIndicator() {
@@ -45,6 +52,27 @@ final class TuckNoteThemeTests: XCTestCase {
         let background = try XCTUnwrap(NSColor(TuckNoteTheme.editor).usingColorSpace(.sRGB))
 
         XCTAssertGreaterThanOrEqual(contrastRatio(foreground, background), 4.5)
+    }
+
+    func testDarkPaletteKeepsReadableEditorContrast() throws {
+        let palette = TuckNoteTheme.palette(for: .dark)
+        let foreground = try XCTUnwrap(NSColor(palette.ink).usingColorSpace(.sRGB))
+        let background = try XCTUnwrap(NSColor(palette.editor).usingColorSpace(.sRGB))
+
+        XCTAssertEqual(hex(palette.shell), "#000000")
+        XCTAssertEqual(hex(palette.editor), "#101010")
+        XCTAssertEqual(hex(palette.ink), "#F7F7F2")
+        XCTAssertEqual(palette.preferredColorScheme, .dark)
+        XCTAssertGreaterThanOrEqual(contrastRatio(foreground, background), 4.5)
+    }
+
+    func testLightPalettePreservesApprovedBrandColors() {
+        let palette = TuckNoteTheme.palette(for: .light)
+
+        XCTAssertEqual(hex(palette.shell), "#E7B9BA")
+        XCTAssertEqual(hex(palette.ink), "#59322F")
+        XCTAssertEqual(hex(palette.accent), "#F3C56B")
+        XCTAssertEqual(palette.preferredColorScheme, .light)
     }
 
     private func hex(_ color: SwiftUI.Color) -> String? {

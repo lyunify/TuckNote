@@ -19,7 +19,7 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(geometry.compactFrame.maxY, screenFrame.maxY)
         XCTAssertEqual(geometry.expandedFrame.size, CGSize(width: 520, height: 430))
         XCTAssertEqual(geometry.expandedFrame.midX, screenFrame.midX)
-        XCTAssertEqual(geometry.expandedFrame.maxY, screenFrame.maxY)
+        XCTAssertEqual(geometry.expandedFrame.maxY, geometry.compactFrame.minY)
         XCTAssertTrue(screenFrame.contains(geometry.compactFrame))
         XCTAssertTrue(screenFrame.contains(geometry.expandedFrame))
     }
@@ -95,5 +95,52 @@ final class NotchGeometryTests: XCTestCase {
         )
 
         XCTAssertEqual(geometry.compactFrame.width, 220)
+    }
+
+    func testPreferredExpandedSizeStaysTopCenteredAndClampedToScreen() {
+        let screenFrame = CGRect(x: 0, y: 0, width: 900, height: 700)
+        let geometry = NotchGeometry(
+            screenFrame: screenFrame,
+            visibleFrame: CGRect(x: 0, y: 24, width: 900, height: 676),
+            safeAreaInsets: NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0),
+            auxiliaryTopLeftArea: nil,
+            auxiliaryTopRightArea: nil
+        )
+
+        let frame = geometry.expandedFrame(fittingPreferredSize: CGSize(width: 760, height: 560))
+
+        XCTAssertEqual(frame.size, CGSize(width: 760, height: 560))
+        XCTAssertEqual(frame.midX, screenFrame.midX)
+        XCTAssertEqual(frame.maxY, screenFrame.maxY)
+        XCTAssertTrue(screenFrame.contains(frame))
+    }
+
+    func testPreferredExpandedSizeUsesMinimumUsableEditorSize() {
+        let geometry = NotchGeometry(
+            screenFrame: CGRect(x: 0, y: 0, width: 900, height: 700),
+            visibleFrame: CGRect(x: 0, y: 24, width: 900, height: 676),
+            safeAreaInsets: NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0),
+            auxiliaryTopLeftArea: nil,
+            auxiliaryTopRightArea: nil
+        )
+
+        let frame = geometry.expandedFrame(fittingPreferredSize: CGSize(width: 120, height: 80))
+
+        XCTAssertEqual(frame.size, CGSize(width: 360, height: 260))
+    }
+
+    func testPreferredExpandedSizeOnNotchedDisplayStaysBelowCompactNotchArea() {
+        let geometry = NotchGeometry(
+            screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+            visibleFrame: CGRect(x: 0, y: 38, width: 1512, height: 944),
+            safeAreaInsets: NSEdgeInsets(top: 74, left: 0, bottom: 0, right: 0),
+            auxiliaryTopLeftArea: CGRect(x: 0, y: 908, width: 666, height: 74),
+            auxiliaryTopRightArea: CGRect(x: 846, y: 908, width: 666, height: 74)
+        )
+
+        let frame = geometry.expandedFrame(fittingPreferredSize: CGSize(width: 360, height: 260))
+
+        XCTAssertEqual(frame.maxY, geometry.compactFrame.minY)
+        XCTAssertFalse(frame.intersects(geometry.compactFrame))
     }
 }

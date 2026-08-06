@@ -38,7 +38,7 @@ final class MarkdownEditorTests: XCTestCase {
         let textView = NSTextView()
         scrollView.documentView = textView
 
-        MarkdownEditorAppearance.tuckNote.apply(to: textView)
+        MarkdownEditorAppearance.tuckNote().apply(to: textView)
 
         let expected = try XCTUnwrap(
             NSColor(TuckNoteTheme.editor).usingColorSpace(.sRGB)
@@ -53,9 +53,243 @@ final class MarkdownEditorTests: XCTestCase {
             expected
         )
         XCTAssertEqual(
-            MarkdownEditorAppearance.tuckNote.surface.usingColorSpace(.sRGB),
+            MarkdownEditorAppearance.tuckNote().surface.usingColorSpace(.sRGB),
             expected
         )
+        XCTAssertEqual(
+            textView.textColor?.usingColorSpace(.sRGB),
+            try XCTUnwrap(NSColor(TuckNoteTheme.ink).usingColorSpace(.sRGB))
+        )
+        XCTAssertEqual(
+            textView.typingAttributes[.foregroundColor] as? NSColor,
+            MarkdownEditorAppearance.tuckNote().ink
+        )
+    }
+
+    @MainActor
+    func testEditorAppearanceCarriesCodeBlockBackgroundFromPalette() throws {
+        let palette = TuckNoteTheme.palette(for: .light)
+        let appearance = MarkdownEditorAppearance.tuckNote(palette: palette)
+
+        XCTAssertEqual(
+            appearance.codeBlockBackground.usingColorSpace(.sRGB),
+            try XCTUnwrap(NSColor(palette.codeBlockBackground).usingColorSpace(.sRGB))
+        )
+    }
+
+    @MainActor
+    func testEditorAppearanceCarriesDarkCodeBlockBackgroundFromPalette() throws {
+        let palette = TuckNoteTheme.palette(for: .dark)
+        let appearance = MarkdownEditorAppearance.tuckNote(palette: palette)
+
+        XCTAssertEqual(
+            appearance.codeBlockBackground.usingColorSpace(.sRGB),
+            try XCTUnwrap(NSColor(palette.codeBlockBackground).usingColorSpace(.sRGB))
+        )
+        XCTAssertNotEqual(
+            appearance.codeBlockBackground.usingColorSpace(.sRGB),
+            try XCTUnwrap(NSColor(TuckNoteTheme.light.codeBlockBackground).usingColorSpace(.sRGB))
+        )
+    }
+
+    @MainActor
+    func testDarkCodeHighlighterSpecPinsDarkTheme() {
+        let appearance = MarkdownEditorAppearance.tuckNote(palette: TuckNoteTheme.dark)
+
+        let spec = MarkdownCodeHighlighterSpec.make(appearance: appearance, isDarkTheme: true)
+
+        XCTAssertEqual(spec.theme, "atom-one-dark")
+        XCTAssertEqual(spec.background, appearance.codeBlockBackground)
+    }
+
+    func testThemeChangesProduceDistinctEditorRenderIDs() {
+        XCTAssertNotEqual(
+            EditorRenderIdentity.make(documentID: "page", themeMode: .light),
+            EditorRenderIdentity.make(documentID: "page", themeMode: .dark)
+        )
+    }
+
+    @MainActor
+    func testTaskCheckboxPolisherHidesMarkdownSyntaxAndKeepsCheckboxAttribute() {
+        let textView = NSTextView()
+        textView.string = "- [x] done"
+        let storage = textView.textStorage!
+        let appearance = MarkdownEditorAppearance.tuckNote()
+
+        TuckNoteTaskCheckboxPolisher.apply(to: textView, appearance: appearance)
+
+        let syntaxRange = NSRange(location: 0, length: 5)
+        let checkboxRange = NSRange(location: 2, length: 3)
+        let contentRange = NSRange(location: 6, length: 4)
+        for location in syntaxRange.location..<NSMaxRange(syntaxRange) {
+            XCTAssertEqual(storage.attribute(.foregroundColor, at: location, effectiveRange: nil) as? NSColor, .clear)
+        }
+        XCTAssertEqual(storage.attribute(.taskCheckbox, at: checkboxRange.location, effectiveRange: nil) as? Bool, true)
+        XCTAssertEqual(storage.attribute(.foregroundColor, at: contentRange.location, effectiveRange: nil) as? NSColor, appearance.mutedInk)
+        XCTAssertEqual(storage.attribute(.strikethroughColor, at: contentRange.location, effectiveRange: nil) as? NSColor, appearance.ink)
+    }
+
+    @MainActor
+    func testTaskCheckboxPolisherAddsReadableSpacingBetweenTaskLines() {
+        let textView = NSTextView()
+        textView.string = "- [ ] one\n- [ ] two"
+        let storage = textView.textStorage!
+
+        TuckNoteTaskCheckboxPolisher.apply(to: textView, appearance: .tuckNote())
+
+        let paragraphStyle = storage.attribute(.paragraphStyle, at: 6, effectiveRange: nil) as? NSParagraphStyle
+        XCTAssertEqual(paragraphStyle?.paragraphSpacing, TuckNoteTheme.markdownTaskParagraphSpacing)
+    }
+
+    @MainActor
+    func testTaskCheckboxPolisherCanHideCompletedTaskLines() {
+        let textView = NSTextView()
+        textView.string = "- [x] done\n- [ ] next"
+        let storage = textView.textStorage!
+
+        TuckNoteTaskCheckboxPolisher.apply(
+            to: textView,
+            appearance: .tuckNote(),
+            hidesCompletedTasks: true
+        )
+
+        XCTAssertEqual(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor, .clear)
+        let hiddenFont = storage.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        XCTAssertLessThanOrEqual(hiddenFont?.pointSize ?? 99, 1)
+        XCTAssertNotEqual(storage.attribute(.foregroundColor, at: 17, effectiveRange: nil) as? NSColor, .clear)
+    }
+
+    @MainActor
+    func testTaskCheckboxPolisherRestoresCompletedLinesAfterShowingAgain() {
+        let textView = NSTextView()
+        textView.string = "- [x] done\n- [ ] next"
+        let storage = textView.textStorage!
+
+        TuckNoteTaskCheckboxPolisher.apply(
+            to: textView,
+            appearance: .tuckNote(),
+            hidesCompletedTasks: true
+        )
+        TuckNoteTaskCheckboxPolisher.apply(
+            to: textView,
+            appearance: .tuckNote(),
+            hidesCompletedTasks: false
+        )
+
+        let restoredFont = storage.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        XCTAssertGreaterThan(restoredFont?.pointSize ?? 0, 1)
+        XCTAssertNotEqual(storage.attribute(.foregroundColor, at: 6, effectiveRange: nil) as? NSColor, .clear)
+    }
+
+    @MainActor
+    func testTaskCheckboxIndicatorUsesAccentFillWhenChecked() {
+        let appearance = MarkdownEditorAppearance.tuckNote(palette: TuckNoteTheme.dark)
+
+        let style = TaskCheckboxIndicatorStyle.make(isChecked: true, appearance: appearance)
+
+        XCTAssertEqual(style.fillColor, appearance.accent)
+        XCTAssertEqual(style.borderColor, appearance.accent)
+        XCTAssertNotEqual(style.fillColor, appearance.ink)
+    }
+
+    @MainActor
+    func testUncheckedTaskCheckboxIndicatorCoversDefaultRenderer() {
+        let appearance = MarkdownEditorAppearance.tuckNote(palette: TuckNoteTheme.light)
+
+        let style = TaskCheckboxIndicatorStyle.make(isChecked: false, appearance: appearance)
+
+        XCTAssertEqual(style.fillColor, appearance.surface)
+        XCTAssertEqual(style.borderColor, appearance.mutedInk)
+    }
+
+    func testTaskToggleMarksCurrentUncheckedTaskComplete() throws {
+        let edit = try XCTUnwrap(MarkdownTaskToggle.make(
+            text: "alpha\n- [ ] study\nomega",
+            selection: NSRange(location: 10, length: 0)
+        ))
+
+        XCTAssertEqual(edit.range, NSRange(location: 9, length: 1))
+        XCTAssertEqual(edit.replacement, "x")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 10, length: 0))
+    }
+
+    func testTaskToggleClearsCurrentCheckedTask() throws {
+        let edit = try XCTUnwrap(MarkdownTaskToggle.make(
+            text: "- [x] study",
+            selection: NSRange(location: 7, length: 0)
+        ))
+
+        XCTAssertEqual(edit.range, NSRange(location: 3, length: 1))
+        XCTAssertEqual(edit.replacement, " ")
+    }
+
+    func testTaskCursorProtectionMovesInsertionOutOfCheckboxSyntax() {
+        let protected = MarkdownTaskCursorProtection.protect(
+            text: "- [ ] study",
+            selection: NSRange(location: 3, length: 0)
+        )
+
+        XCTAssertEqual(protected, NSRange(location: 6, length: 0))
+    }
+
+    func testTaskCursorProtectionMovesSelectionOutOfCheckboxSyntax() {
+        let protected = MarkdownTaskCursorProtection.protect(
+            text: "- [ ] study",
+            selection: NSRange(location: 0, length: 5)
+        )
+
+        XCTAssertEqual(protected, NSRange(location: 6, length: 0))
+    }
+
+    func testTaskCursorProtectionMovesInsertionOutOfBulletMarker() {
+        let protected = MarkdownTaskCursorProtection.protect(
+            text: "- study",
+            selection: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertEqual(protected, NSRange(location: 2, length: 0))
+    }
+
+    func testTaskCursorProtectionMovesSelectionOutOfBulletMarker() {
+        let protected = MarkdownTaskCursorProtection.protect(
+            text: "- study",
+            selection: NSRange(location: 0, length: 1)
+        )
+
+        XCTAssertEqual(protected, NSRange(location: 2, length: 0))
+    }
+
+    func testTaskCursorProtectionMovesInsertionOutOfNumberedMarker() {
+        let protected = MarkdownTaskCursorProtection.protect(
+            text: "1. study",
+            selection: NSRange(location: 1, length: 0)
+        )
+
+        XCTAssertEqual(protected, NSRange(location: 3, length: 0))
+    }
+
+    func testTaskCursorProtectionLeavesTaskBodySelectionAlone() {
+        let protected = MarkdownTaskCursorProtection.protect(
+            text: "- [ ] study",
+            selection: NSRange(location: 8, length: 0)
+        )
+
+        XCTAssertEqual(protected, NSRange(location: 8, length: 0))
+    }
+
+    func testTaskProgressCountsCompletedTasks() {
+        let progress = MarkdownTaskProgress.make(
+            from: """
+            - [x] first
+            - [ ] second
+            paragraph
+            1. [X] third
+            """
+        )
+
+        XCTAssertEqual(progress.completed, 2)
+        XCTAssertEqual(progress.total, 3)
+        XCTAssertEqual(progress.summary, "2/3 done")
     }
 
     func testToolbarContainsExactlyTheEightFocusedCommands() {
@@ -81,6 +315,27 @@ final class MarkdownEditorTests: XCTestCase {
             try XCTUnwrap(MarkdownSelectionEdit.make(command: .inlineCode, text: source, selection: selection)).replacement,
             "`beta`"
         )
+        XCTAssertEqual(
+            try XCTUnwrap(MarkdownSelectionEdit.make(command: .bold, text: source, selection: selection)).replacement,
+            "**beta**"
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(MarkdownSelectionEdit.make(command: .italic, text: source, selection: selection)).replacement,
+            "*beta*"
+        )
+    }
+
+    func testInlineCommandsWrapTaskTextWithoutTouchingCheckboxSyntax() throws {
+        let source = "- [ ] study"
+        let selection = NSRange(location: 6, length: 5)
+
+        let edit = try XCTUnwrap(
+            MarkdownSelectionEdit.make(command: .bold, text: source, selection: selection)
+        )
+
+        XCTAssertEqual(edit.range, selection)
+        XCTAssertEqual(edit.replacement, "**study**")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 8, length: 5))
     }
 
     func testInlineCommandsInsertEditableMarkersAtEmptySelection() throws {
@@ -97,6 +352,12 @@ final class MarkdownEditorTests: XCTestCase {
         )
         XCTAssertEqual(code.replacement, "``")
         XCTAssertEqual(code.selectedRange, NSRange(location: 6, length: 0))
+
+        let bold = try XCTUnwrap(
+            MarkdownSelectionEdit.make(command: .bold, text: "alpha", selection: selection)
+        )
+        XCTAssertEqual(bold.replacement, "****")
+        XCTAssertEqual(bold.selectedRange, NSRange(location: 7, length: 0))
     }
 
     func testBlockCommandsPrefixEverySelectedLine() throws {
@@ -375,7 +636,11 @@ final class MarkdownEditorTests: XCTestCase {
             )
             coordinator.resolveAssociationAndApplySelection()
 
-            XCTAssertEqual(editor.selectedRange(), edit.selectedRange, command.title)
+            let protectedSelection = MarkdownTaskCursorProtection.protect(
+                text: editor.string,
+                selection: edit.selectedRange
+            )
+            XCTAssertEqual(editor.selectedRange(), protectedSelection, command.title)
             XCTAssertEqual(coordinator.lastAppliedRequestID, request.id, command.title)
             coordinator.stopObserving()
         }

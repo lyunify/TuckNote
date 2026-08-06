@@ -22,18 +22,24 @@ install -m 644 "$REPO_ROOT/THIRD_PARTY_NOTICES.md" \
     "$RESOURCES_DIR/THIRD_PARTY_NOTICES.md"
 install -m 644 "$REPO_ROOT/LICENSE" "$RESOURCES_DIR/LICENSE"
 
-KEYBOARD_BUNDLE="KeyboardShortcuts_KeyboardShortcuts.bundle"
-KEYBOARD_BUNDLE_SOURCE="$BIN_DIR/$KEYBOARD_BUNDLE"
-KEYBOARD_BUNDLE_DESTINATION="$APP_DIR/$KEYBOARD_BUNDLE"
-test -d "$KEYBOARD_BUNDLE_SOURCE"
-while IFS= read -r directory; do
-    relative_path="${directory#"$KEYBOARD_BUNDLE_SOURCE"}"
-    mkdir -p "$KEYBOARD_BUNDLE_DESTINATION$relative_path"
-done < <(find "$KEYBOARD_BUNDLE_SOURCE" -type d -print | sort)
-while IFS= read -r resource; do
-    relative_path="${resource#"$KEYBOARD_BUNDLE_SOURCE"/}"
-    install -m 644 "$resource" "$KEYBOARD_BUNDLE_DESTINATION/$relative_path"
-done < <(find "$KEYBOARD_BUNDLE_SOURCE" -type f -print | sort)
+copy_bundle() {
+    local bundle="$1"
+    local source="$BIN_DIR/$bundle"
+    local destination="$APP_DIR/$bundle"
+
+    test -d "$source"
+    while IFS= read -r directory; do
+        local relative_path="${directory#"$source"}"
+        mkdir -p "$destination$relative_path"
+    done < <(find "$source" -type d -print | sort)
+    while IFS= read -r resource; do
+        local relative_path="${resource#"$source"/}"
+        install -m 644 "$resource" "$destination/$relative_path"
+    done < <(find "$source" -type f -print | sort)
+}
+
+copy_bundle "KeyboardShortcuts_KeyboardShortcuts.bundle"
+copy_bundle "Highlighter_Highlighter.bundle"
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

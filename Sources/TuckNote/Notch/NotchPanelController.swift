@@ -33,13 +33,41 @@ struct HoverDwellState {
     }
 }
 
+enum PanelAutoCollapsePolicy {
+    static func shouldCollapse(
+        triggerMode: TriggerMode,
+        presentation: PanelPresentation,
+        isPinned: Bool,
+        isPointerInsideCompactPanel: Bool,
+        isPointerInsideExpandedPanel: Bool
+    ) -> Bool {
+        false
+    }
+}
+
+enum PanelResizePolicy {
+    static func recenteredExpandedFrame(
+        afterUserResize frame: CGRect,
+        geometry: NotchGeometry
+    ) -> CGRect {
+        geometry.expandedFrame(fittingPreferredSize: frame.size)
+    }
+}
+
 struct PanelSpringSpecification: Equatable {
     let mass: CGFloat
     let stiffness: CGFloat
     let damping: CGFloat
     let initialVelocity: CGFloat
+    let anchorPoint: CGPoint
 
-    static let panel = Self(mass: 1, stiffness: 320, damping: 28, initialVelocity: 0)
+    static let panel = Self(
+        mass: 1,
+        stiffness: 320,
+        damping: 28,
+        initialVelocity: 0,
+        anchorPoint: CGPoint(x: 0.5, y: 1)
+    )
 
     func makeAnimation(from transform: CATransform3D) -> CASpringAnimation {
         let animation = CASpringAnimation(keyPath: "transform")
@@ -87,11 +115,14 @@ final class NotchPanelController {
     private let settings: AppSettings
     private let compactPanel: NSPanel
     private let expandedPanel: NSPanel
+    private let resizeObserver = PanelResizeObserver()
     private var presentation = PanelPresentation.compact
     nonisolated(unsafe) private var localMonitor: Any?
     nonisolated(unsafe) private var globalMonitor: Any?
     nonisolated(unsafe) private var hoverTimer: Timer?
     private var hoverDwell = HoverDwellState(duration: 0.120)
+    private var preferredExpandedSize: CGSize?
+    private var isRecenteringResize = false
 
     init(store: NoteStore, imageStore: ImageStore, settings: AppSettings) {
         self.store = store
@@ -100,15 +131,23 @@ final class NotchPanelController {
         compactPanel = Self.makePanel()
         expandedPanel = Self.makePanel()
 
-        let compactView = CompactHostingView(rootView: CompactNotchView())
+        let compactView = CompactHostingView(rootView: CompactNotchView(
+            palette: TuckNoteTheme.palette(for: settings.themeMode)
+        ))
         compactView.onMouseDown = { [weak self] in
             guard let self, self.settings.triggerMode == .click else { return }
             self.expand(animated: true)
         }
         compactPanel.contentView = compactView
         expandedPanel.contentView = NSHostingView(
-            rootView: NotebookView(store: store, imageStore: imageStore)
+            rootView: NotebookView(store: store, settings: settings, imageStore: imageStore)
         )
+        expandedPanel.minSize = NotchGeometry.minimumExpandedSize
+        resizeObserver.onResize = { [weak self] frame in
+            self?.preferredExpandedSize = frame.size
+            self?.recenterExpandedPanel(afterUserResize: frame)
+        }
+        expandedPanel.delegate = resizeObserver
 
         installEventMonitors()
         startHoverPolling()
@@ -148,7 +187,7 @@ final class NotchPanelController {
     private static func makePanel() -> NSPanel {
         let panel = NotchPanel(
             contentRect: .zero,
-            styleMask: [.borderless, .fullSizeContentView],
+            styleMask: [.borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -164,17 +203,23 @@ final class NotchPanelController {
 
     private func applyPresentation(animated: Bool) {
         let geometry = geometryForCurrentScreen()
+        let expandedFrame = geometry.expandedFrame(fittingPreferredSize: preferredExpandedSize)
         let shownPanel = presentation.showsCompactPanel ? compactPanel : expandedPanel
         let hiddenPanel = presentation.showsCompactPanel ? expandedPanel : compactPanel
         let targetFrame = presentation.showsCompactPanel
             ? geometry.compactFrame
-            : geometry.expandedFrame
+            : expandedFrame
         let initialFrame = presentation.showsCompactPanel
-            ? geometry.expandedFrame
+            ? expandedFrame
             : geometry.compactFrame
 
+        if let compactView = compactPanel.contentView as? CompactHostingView<CompactNotchView> {
+            compactView.rootView = CompactNotchView(
+                palette: TuckNoteTheme.palette(for: settings.themeMode)
+            )
+        }
         compactPanel.setFrame(geometry.compactFrame, display: true)
-        expandedPanel.setFrame(geometry.expandedFrame, display: true)
+        expandedPanel.setFrame(expandedFrame, display: true)
         hiddenPanel.contentView?.layer?.removeAnimation(forKey: "panelSpring")
         hiddenPanel.orderOut(nil)
         if animated {
@@ -230,6 +275,7 @@ final class NotchPanelController {
         guard let layer = contentView.layer else { return }
         layer.removeAnimation(forKey: "panelSpring")
         layer.transform = CATransform3DIdentity
+        setAnchorPoint(specification.anchorPoint, for: layer)
         let initialTransform = CATransform3DMakeScale(
             initialFrame.width / targetFrame.width,
             initialFrame.height / targetFrame.height,
@@ -239,6 +285,24 @@ final class NotchPanelController {
             specification.makeAnimation(from: initialTransform),
             forKey: "panelSpring"
         )
+    }
+
+    private func setAnchorPoint(_ anchorPoint: CGPoint, for layer: CALayer) {
+        let frame = layer.frame
+        layer.anchorPoint = anchorPoint
+        layer.frame = frame
+    }
+
+    private func recenterExpandedPanel(afterUserResize frame: CGRect) {
+        guard presentation == .expanded, !isRecenteringResize else { return }
+        let targetFrame = PanelResizePolicy.recenteredExpandedFrame(
+            afterUserResize: frame,
+            geometry: geometryForCurrentScreen()
+        )
+        guard expandedPanel.frame != targetFrame else { return }
+        isRecenteringResize = true
+        defer { isRecenteringResize = false }
+        expandedPanel.setFrame(targetFrame, display: true)
     }
 
     private func geometryForCurrentScreen() -> NotchGeometry {
@@ -277,6 +341,7 @@ final class NotchPanelController {
                 return nil
             }
             if event.type == .leftMouseDown,
+               !self.settings.isPanelPinned,
                !self.expandedPanel.frame.contains(NSEvent.mouseLocation) {
                 self.collapse(animated: true)
             }
@@ -286,7 +351,8 @@ final class NotchPanelController {
             [weak self] _ in
             Task { @MainActor in
                 guard let self, self.presentation == .expanded else { return }
-                if !self.expandedPanel.frame.contains(NSEvent.mouseLocation) {
+                if !self.settings.isPanelPinned,
+                   !self.expandedPanel.frame.contains(NSEvent.mouseLocation) {
                     self.collapse(animated: true)
                 }
             }
@@ -303,13 +369,24 @@ final class NotchPanelController {
     }
 
     private func pollHover(now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        let isPointerInsideCompactPanel = compactPanel.frame.contains(NSEvent.mouseLocation)
+        let isPointerInsideExpandedPanel = expandedPanel.frame.contains(NSEvent.mouseLocation)
         let isInside = settings.triggerMode == .hover
             && presentation == .compact
             && compactPanel.isVisible
-            && compactPanel.frame.contains(NSEvent.mouseLocation)
+            && isPointerInsideCompactPanel
         if hoverDwell.update(isInside: isInside, now: now) {
             hoverDwell = HoverDwellState(duration: 0.120)
             expand(animated: true)
+        }
+        if PanelAutoCollapsePolicy.shouldCollapse(
+            triggerMode: settings.triggerMode,
+            presentation: presentation,
+            isPinned: settings.isPanelPinned,
+            isPointerInsideCompactPanel: isPointerInsideCompactPanel,
+            isPointerInsideExpandedPanel: isPointerInsideExpandedPanel
+        ) {
+            collapse(animated: true)
         }
     }
 }
@@ -320,6 +397,15 @@ private final class CompactHostingView<Content: View>: NSHostingView<Content> {
 
     override func mouseDown(with event: NSEvent) {
         onMouseDown?()
+    }
+}
+
+private final class PanelResizeObserver: NSObject, NSWindowDelegate {
+    var onResize: (CGRect) -> Void = { _ in }
+
+    func windowDidResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        onResize(window.frame)
     }
 }
 

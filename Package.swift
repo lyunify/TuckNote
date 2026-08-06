@@ -14,6 +14,7 @@ let package = Package(
             name: "TuckNote",
             dependencies: [
                 .product(name: "MarkdownEngine", package: "swift-markdown-engine"),
+                .product(name: "MarkdownEngineCodeBlocks", package: "swift-markdown-engine"),
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
             ]
         ),

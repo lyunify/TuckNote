@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TuckNote - Task-first notes in your notch</title>
+  <meta name="description" content="TuckNote is a local, task-first Markdown notebook that unfolds from your MacBook notch.">
+  <style>
+    :root {
+      --rose: #e7b9ba;
+      --paper: #fff8f4;
+      --soft-paper: #f6e5df;
+      --ink: #59322f;
+      --muted: #8b6963;
+      --accent: #f3c56b;
+      --black: #050505;
+      --night: #101010;
+      --night-2: #1c1c1c;
+      --night-border: #303030;
+      --white: #f7f7f2;
+      --shadow: 0 28px 80px rgba(89, 50, 47, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 10%, rgba(243, 197, 107, 0.35), transparent 28rem),
+        radial-gradient(circle at 80% 0%, rgba(231, 185, 186, 0.75), transparent 24rem),
+        linear-gradient(135deg, #fff8f4 0%, #f5d6cf 48%, #e7b9ba 100%);
+      font-family: "Avenir Next", "SF Pro Rounded", "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 28px 0 56px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 12px 0 44px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 46px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--black);
+      box-shadow: inset 15px 0 0 rgba(255, 255, 255, 0.13);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 18px;
+      color: rgba(89, 50, 47, 0.75);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(520px, 1.1fr);
+      align-items: center;
+      gap: 56px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      border: 1px solid rgba(89, 50, 47, 0.14);
+      border-radius: 999px;
+      background: rgba(255, 248, 244, 0.55);
+      color: rgba(89, 50, 47, 0.72);
+      font-size: 13px;
+      font-weight: 700;
+      backdrop-filter: blur(14px);
+    }
+
+    .eyebrow-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    h1 {
+      margin: 24px 0 18px;
+      max-width: 640px;
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: clamp(54px, 7.6vw, 104px);
+      line-height: 0.88;
+      letter-spacing: -0.075em;
+    }
+
+    .lead {
+      max-width: 560px;
+      margin: 0 0 28px;
+      color: rgba(89, 50, 47, 0.76);
+      font-size: clamp(18px, 2vw, 22px);
+      line-height: 1.55;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 18px;
+      border-radius: 999px;
+      font-weight: 800;
+      box-shadow: 0 12px 30px rgba(89, 50, 47, 0.14);
+    }
+
+    .button.primary {
+      color: var(--white);
+      background: var(--ink);
+    }
+
+    .button.secondary {
+      color: var(--ink);
+      background: rgba(255, 248, 244, 0.64);
+      border: 1px solid rgba(89, 50, 47, 0.15);
+    }
+
+    .quick-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: rgba(89, 50, 47, 0.72);
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .quick-list li {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .check {
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      color: var(--ink);
+      background: var(--accent);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .device {
+      position: relative;
+      min-height: 700px;
+      padding-top: 20px;
+    }
+
+    .screen-glow {
+      position: absolute;
+      inset: 72px 12px auto;
+      height: 520px;
+      border-radius: 42px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.35), rgba(89,50,47,0.08));
+      filter: blur(20px);
+    }
+
+    .tuck-shell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(89, 50, 47, 0.14);
+      border-radius: 42px;
+      background: var(--rose);
+      box-shadow: var(--shadow);
+    }
+
+    .notch-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      height: 68px;
+      padding: 0 28px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(89, 50, 47, 0.32);
+    }
+
+    .notch {
+      width: 38px;
+      height: 16px;
+      border-radius: 999px;
+      background: var(--ink);
+      margin-right: auto;
+    }
+
+    .shell-icon {
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .editor-card {
+      margin: 0 28px 28px;
+      overflow: hidden;
+      border-radius: 22px;
+      background: var(--soft-paper);
+      border: 1px solid rgba(89, 50, 47, 0.12);
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      height: 50px;
+      padding: 0 20px;
+      border-bottom: 1px solid rgba(89, 50, 47, 0.11);
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .toolbar-spacer {
+      flex: 1;
+    }
+
+    .progress {
+      color: rgba(89, 50, 47, 0.7);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .note-body {
+      min-height: 430px;
+      padding: 30px 30px 44px;
+    }
+
+    .note-body h2 {
+      margin: 0 0 22px;
+      font-size: 30px;
+      letter-spacing: -0.04em;
+    }
+
+    .task {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 12px 0;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .box {
+      display: inline-grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      flex: 0 0 auto;
+      border: 2px solid rgba(89, 50, 47, 0.35);
+      border-radius: 7px;
+      background: var(--soft-paper);
+    }
+
+    .task.done {
+      color: rgba(89, 50, 47, 0.58);
+      text-decoration: line-through;
+      text-decoration-color: rgba(89, 50, 47, 0.75);
+    }
+
+    .task.done .box {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--paper);
+      text-decoration: none;
+    }
+
+    .dark-card {
+      position: absolute;
+      right: -18px;
+      bottom: 0;
+      width: min(360px, 64%);
+      overflow: hidden;
+      border: 1px solid var(--night-border);
+      border-radius: 28px;
+      background: var(--black);
+      color: var(--white);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+      transform: rotate(-2deg);
+    }
+
+    .dark-card .toolbar {
+      height: 44px;
+      border-color: var(--night-border);
+      color: var(--white);
+      background: var(--night);
+      font-size: 14px;
+    }
+
+    .dark-card .body {
+      padding: 22px;
+      background: var(--night);
+    }
+
+    .code {
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: var(--night-2);
+      color: #f7f7f2;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .section {
+      padding: 82px 0 0;
+    }
+
+    .section h2 {
+      margin: 0 0 24px;
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: clamp(38px, 5vw, 64px);
+      line-height: 0.95;
+      letter-spacing: -0.055em;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .feature {
+      min-height: 210px;
+      padding: 24px;
+      border: 1px solid rgba(89, 50, 47, 0.14);
+      border-radius: 28px;
+      background: rgba(255, 248, 244, 0.55);
+      backdrop-filter: blur(14px);
+    }
+
+    .feature strong {
+      display: block;
+      margin-bottom: 12px;
+      font-size: 20px;
+      letter-spacing: -0.025em;
+    }
+
+    .feature p {
+      margin: 0;
+      color: rgba(89, 50, 47, 0.72);
+      line-height: 1.55;
+    }
+
+    .download {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 28px;
+      margin-top: 72px;
+      padding: 30px;
+      border-radius: 34px;
+      background: var(--black);
+      color: var(--white);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    }
+
+    .download h2 {
+      margin: 0 0 8px;
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 40px;
+      letter-spacing: -0.045em;
+    }
+
+    .download p {
+      margin: 0;
+      color: rgba(247, 247, 242, 0.72);
+      line-height: 1.55;
+    }
+
+    .download .button {
+      background: var(--accent);
+      color: var(--ink);
+      box-shadow: none;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .download {
+        grid-template-columns: 1fr;
+      }
+
+      .device {
+        min-height: 600px;
+      }
+
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .page {
+        width: min(100% - 24px, 1180px);
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .device {
+        min-height: 520px;
+      }
+
+      .tuck-shell {
+        border-radius: 30px;
+      }
+
+      .editor-card {
+        margin: 0 14px 16px;
+      }
+
+      .note-body {
+        min-height: 360px;
+        padding: 24px 20px;
+      }
+
+      .task {
+        font-size: 18px;
+      }
+
+      .dark-card {
+        right: 0;
+        width: 74%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <nav class="nav" aria-label="Primary">
+      <a class="brand" href="#">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>TuckNote</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#download">Build</a>
+        <a href="../README.md">README</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div>
+        <span class="eyebrow"><span class="eyebrow-dot"></span> Local-first macOS scratchpad</span>
+        <h1>Tasks, tucked into the notch.</h1>
+        <p class="lead">
+          TuckNote unfolds from the top of your screen for quick Markdown notes,
+          checklists, links, screenshots, and code snippets without opening a
+          full notes app.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="../README.md">Read the README</a>
+          <a class="button secondary" href="#download">Build from source</a>
+        </div>
+        <ul class="quick-list">
+          <li><span class="check">✓</span> Hover the notch, capture a task, get back to work.</li>
+          <li><span class="check">✓</span> Toggle tasks with Cmd+Enter and hide completed work.</li>
+          <li><span class="check">✓</span> Notes and images stay on your Mac.</li>
+        </ul>
+      </div>
+
+      <div class="device" aria-label="TuckNote interface mockup">
+        <div class="screen-glow"></div>
+        <div class="tuck-shell">
+          <div class="notch-row">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="notch"></span>
+            <span class="shell-icon">☾</span>
+            <span class="shell-icon">⌖</span>
+            <span class="shell-icon">−</span>
+            <span class="shell-icon">+</span>
+          </div>
+          <div class="editor-card">
+            <div class="toolbar">
+              <span>B</span>
+              <span><em>I</em></span>
+              <span>↗</span>
+              <span>•</span>
+              <span>1.</span>
+              <span>☑</span>
+              <span>❝</span>
+              <span>&lt;/&gt;</span>
+              <span class="toolbar-spacer"></span>
+              <span class="progress">2/3 done</span>
+            </div>
+            <div class="note-body">
+              <h2>Final page</h2>
+              <div class="task done"><span class="box">✓</span><span>submit lecture notes</span></div>
+              <div class="task"><span class="box"></span><span>reading a book</span></div>
+              <div class="task"><span class="box"></span><span>do a math problem</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dark-card">
+          <div class="toolbar">
+            <span>Dark theme</span>
+            <span class="toolbar-spacer"></span>
+            <span>code</span>
+          </div>
+          <div class="body">
+            <pre class="code"><code>```swift
+let note = "private"
+saveLocally(note)
+```</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <h2>Built for tiny work loops.</h2>
+      <div class="feature-grid">
+        <article class="feature">
+          <strong>Task-first Markdown</strong>
+          <p>Checkboxes are polished for actual daily use: quick toggling, completed-task hiding, progress counts, and readable light/dark states.</p>
+        </article>
+        <article class="feature">
+          <strong>Notch-native rhythm</strong>
+          <p>Open by hover or click, pin when you need it, and resize the panel while keeping it centered below the notch.</p>
+        </article>
+        <article class="feature">
+          <strong>Local by default</strong>
+          <p>Notebook JSON and PNG attachments live in Application Support. No account, no sync service, no server copy of your notes.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="download" class="download">
+      <div>
+        <h2>Build TuckNote locally.</h2>
+        <p>Clone the repository, run the Swift package, or create an unsigned app bundle for local testing.</p>
+      </div>
+      <a class="button" href="../README.md#build-and-test">Build steps</a>
+    </section>
+  </main>
+</body>
+</html>

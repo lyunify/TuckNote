@@ -13,6 +13,14 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
 
+            Picker("Theme", selection: $settings.themeMode) {
+                Text("Light").tag(ThemeMode.light)
+                Text("Dark").tag(ThemeMode.dark)
+            }
+            .pickerStyle(.segmented)
+
+            Toggle("Keep panel pinned", isOn: $settings.isPanelPinned)
+
             KeyboardShortcuts.Recorder(
                 "Toggle TuckNote",
                 name: .toggleTuckNote

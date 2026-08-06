@@ -4,6 +4,10 @@ enum NotebookAccessibility {
     static let addPageLabel = "Add page"
     static let removePageLabel = "Remove page"
     static let settingsLabel = "Settings"
+    static let pinPanelLabel = "Keep TuckNote open"
+    static let unpinPanelLabel = "Auto-hide TuckNote"
+    static let switchToDarkThemeLabel = "Switch to dark theme"
+    static let switchToLightThemeLabel = "Switch to light theme"
     static let dismissNoticeLabel = "Dismiss notice"
 
     static func pageLabel(position: Int, count: Int) -> String {
@@ -12,12 +16,18 @@ enum NotebookAccessibility {
 }
 
 struct CompactNotchView: View {
+    let palette: TuckNotePalette
+
+    init(palette: TuckNotePalette = TuckNoteTheme.light) {
+        self.palette = palette
+    }
+
     var body: some View {
         RoundedRectangle(cornerRadius: TuckNoteTheme.compactCornerRadius)
-            .fill(TuckNoteTheme.shell)
+            .fill(palette.shell)
             .overlay(alignment: .bottom) {
                 Capsule()
-                    .fill(TuckNoteTheme.espresso)
+                    .fill(palette.ink)
                     .frame(
                         width: TuckNoteTheme.compactHandleWidth,
                         height: TuckNoteTheme.compactHandleHeight
@@ -29,7 +39,12 @@ struct CompactNotchView: View {
 
 struct NotebookView: View {
     @ObservedObject var store: NoteStore
+    @ObservedObject var settings: AppSettings
     let imageStore: ImageStore
+
+    private var palette: TuckNotePalette {
+        TuckNoteTheme.palette(for: settings.themeMode)
+    }
 
     private var markdown: Binding<String> {
         Binding(
@@ -47,8 +62,8 @@ struct NotebookView: View {
                     } label: {
                         Capsule()
                             .fill(page.id == store.notebook.activePageID
-                                  ? TuckNoteTheme.espresso
-                                  : TuckNoteTheme.espresso.opacity(0.45))
+                                  ? palette.ink
+                                  : palette.ink.opacity(0.45))
                             .frame(
                                 width: page.id == store.notebook.activePageID
                                     ? TuckNoteTheme.activePageIndicatorWidth
@@ -74,6 +89,22 @@ struct NotebookView: View {
 
                 Spacer()
                 shellButton(
+                    symbol: settings.themeMode == .dark ? "sun.max" : "moon",
+                    label: settings.themeMode == .dark
+                        ? NotebookAccessibility.switchToLightThemeLabel
+                        : NotebookAccessibility.switchToDarkThemeLabel
+                ) {
+                    settings.toggleTheme()
+                }
+                shellButton(
+                    symbol: settings.isPanelPinned ? "pin.fill" : "pin",
+                    label: settings.isPanelPinned
+                        ? NotebookAccessibility.unpinPanelLabel
+                        : NotebookAccessibility.pinPanelLabel
+                ) {
+                    settings.isPanelPinned.toggle()
+                }
+                shellButton(
                     symbol: "minus",
                     label: NotebookAccessibility.removePageLabel,
                     action: store.removeActivePage
@@ -93,7 +124,7 @@ struct NotebookView: View {
                 .help(NotebookAccessibility.settingsLabel)
             }
             .frame(height: TuckNoteTheme.toolbarHeight)
-            .foregroundStyle(TuckNoteTheme.espresso)
+            .foregroundStyle(palette.ink)
 
             if let notice = store.notice {
                 HStack(spacing: TuckNoteTheme.toolbarSpacing) {
@@ -114,13 +145,13 @@ struct NotebookView: View {
                     .accessibilityLabel(NotebookAccessibility.dismissNoticeLabel)
                     .help(NotebookAccessibility.dismissNoticeLabel)
                 }
-                .foregroundStyle(TuckNoteTheme.ink)
+                .foregroundStyle(palette.ink)
                 .padding(.leading, TuckNoteTheme.editorPadding)
-                .background(TuckNoteTheme.paper)
+                .background(palette.paper)
                 .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius))
                 .overlay {
                     RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius)
-                        .stroke(TuckNoteTheme.border, lineWidth: 1)
+                        .stroke(palette.border, lineWidth: 1)
                 }
             }
 
@@ -128,6 +159,7 @@ struct NotebookView: View {
                 text: markdown,
                 documentID: store.activePage.id.uuidString,
                 imageStore: imageStore,
+                palette: palette,
                 initialSelection: NSRange(
                     location: store.activePage.selectionLocation,
                     length: store.activePage.selectionLength
@@ -139,17 +171,19 @@ struct NotebookView: View {
                     store.showNotice("Could not save pasted image.")
                 }
             )
-                .background(TuckNoteTheme.editor)
+                .background(palette.editor)
                 .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius))
                 .overlay {
                     RoundedRectangle(cornerRadius: TuckNoteTheme.editorCornerRadius)
-                        .stroke(TuckNoteTheme.border, lineWidth: 1)
+                        .stroke(palette.border, lineWidth: 1)
                 }
         }
         .padding(.horizontal, TuckNoteTheme.shellHorizontalPadding)
         .padding(.vertical, TuckNoteTheme.shellVerticalPadding)
-        .background(TuckNoteTheme.shell)
+        .background(palette.shell)
         .clipShape(RoundedRectangle(cornerRadius: TuckNoteTheme.expandedCornerRadius))
+        .tint(palette.accent)
+        .preferredColorScheme(palette.preferredColorScheme)
     }
 
     private func pageNumber(for page: NotePage) -> Int {
