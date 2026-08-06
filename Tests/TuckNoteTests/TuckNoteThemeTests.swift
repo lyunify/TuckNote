@@ -89,15 +89,17 @@ final class TuckNoteThemeTests: XCTestCase {
     }
 
     private func luminance(_ color: NSColor) -> CGFloat {
-        [color.redComponent, color.greenComponent, color.blueComponent]
-            .map { component in
-                component <= 0.04045
-                    ? component / 12.92
-                    : pow((component + 0.055) / 1.055, 2.4)
-            }
-            .enumerated()
-            .reduce(0) { result, item in
-                result + item.element * [0.2126, 0.7152, 0.0722][item.offset]
-            }
+        let red = linearized(color.redComponent)
+        let green = linearized(color.greenComponent)
+        let blue = linearized(color.blueComponent)
+
+        return red * 0.2126 + green * 0.7152 + blue * 0.0722
+    }
+
+    private func linearized(_ component: CGFloat) -> CGFloat {
+        if component <= 0.04045 {
+            return component / 12.92
+        }
+        return pow((component + 0.055) / 1.055, 2.4)
     }
 }
