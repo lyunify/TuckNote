@@ -1,14 +1,16 @@
-# TuckNote
+# TuckNotes
+
+![TuckNotes: Quick notes. Right in your notch.](Assets/ReadmeHero.png)
 
 Task-first notes, tucked into your MacBook notch.
 
-TuckNote is a small local Markdown notebook for quick tasks, links, ideas, and screenshots. It stays near the top of your screen, opens from the notch area when you need it, and gets out of the way when you do not.
+TuckNotes is a small local Markdown notebook for quick tasks, links, ideas, and screenshots. It stays near the top of your screen, opens from the notch area when you need it, and gets out of the way when you do not.
 
 No account. No cloud sync. Your notes stay on your Mac.
 
 The static product page lives at [`docs/index.html`](docs/index.html).
 
-## Why TuckNote
+## Why TuckNotes
 
 - Lives in the notch area instead of another window, tab, or menu bar popover.
 - Opens quickly for short notes and task capture, then collapses back into a compact panel.
@@ -23,7 +25,7 @@ The static product page lives at [`docs/index.html`](docs/index.html).
 - Pin mode for keeping the note panel open
 - Resizable centered panel
 - Light and dark themes with a quick sun/moon toggle
-- Up to five local Markdown pages
+- Local Markdown pages with no fixed page limit
 - Headings, links, lists, task lists, and fenced code blocks
 - Task progress such as `2/5 done`
 - Hide completed tasks without changing the underlying Markdown
@@ -31,9 +33,9 @@ The static product page lives at [`docs/index.html`](docs/index.html).
 - Global keyboard shortcut support
 - Automatic local saves and damaged-notebook recovery
 
-## Using TuckNote
+## Using TuckNotes
 
-Open TuckNote by hovering or clicking the notch zone, or by using the global keyboard shortcut. Pin it when you want it to stay visible while switching apps.
+Open TuckNotes by hovering or clicking the notch zone, or by using the global keyboard shortcut. Pin it when you want it to stay visible while switching apps.
 
 Use the editor toolbar for Markdown formatting, list creation, task insertion, and code blocks. Put the cursor on a task line and press `Cmd+Enter` to toggle completion. The eye button hides completed tasks from view while preserving the original Markdown.
 
@@ -41,17 +43,17 @@ Use the sun/moon button next to the pin control to switch between light and dark
 
 ## Privacy And Local Data
 
-TuckNote stores notes and images only on your Mac in:
+TuckNotes stores notes and images only on your Mac in:
 
 ```text
 ~/Library/Application Support/TuckNote/
 ```
 
-The notebook is saved as `notebook.json`; attached images live in the `Images` directory. TuckNote does not sync content, create an account, or send notebook data to a service.
+The notebook is saved as `notebook.json`; attached images live in the `Images` directory. TuckNotes does not sync content, create an account, or send notebook data to a service.
 
 ## How It Works
 
-TuckNote is a SwiftUI app hosted inside an AppKit panel. `NotchPanelController` owns the floating panel, hover behavior, pinning, resizing, and screen positioning. `NotchGeometry` keeps the expanded panel aligned with the notch and away from unsafe screen areas.
+TuckNotes is a SwiftUI app hosted inside an AppKit panel. `NotchPanelController` owns the floating panel, hover behavior, pinning, resizing, and screen positioning. `NotchGeometry` keeps the expanded panel aligned with the notch and away from unsafe screen areas.
 
 `NotebookView` renders the main note shell, page controls, theme toggle, and settings entry point. `MarkdownEditorView` wraps the native Markdown editor experience, including toolbar actions, task checkbox rendering, cursor protection, code block styling, and task progress.
 
@@ -75,16 +77,16 @@ Create an unsigned release app and ZIP archive with:
 ./Scripts/package-app.sh
 ```
 
-The artifacts are written to `dist/TuckNote.app` and `dist/TuckNote-macOS.zip`.
+The artifacts are written to `dist/TuckNotes.app` and `dist/TuckNotes-macOS.zip`.
 
 ## Opening Unsigned Builds
 
-Release artifacts are not signed or notarized. On first launch, Control-click or right-click `TuckNote.app` in Finder, choose **Open**, then confirm **Open**. macOS remembers that choice for later launches. Only bypass this warning for a build you trust.
+Release artifacts are not signed or notarized. On first launch, Control-click or right-click `TuckNotes.app` in Finder, choose **Open**, then confirm **Open**. macOS remembers that choice for later launches. Only bypass this warning for a build you trust.
 
 ## Credits
 
-TuckNote uses [MarkdownEngine](https://github.com/nodes-app/swift-markdown-engine) under the Apache License 2.0 and [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) under the MIT License. Their license texts are reproduced in `THIRD_PARTY_NOTICES.md` and included in packaged builds.
+TuckNotes uses [MarkdownEngine](https://github.com/nodes-app/swift-markdown-engine) under the Apache License 2.0 and [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) under the MIT License. Their license texts are reproduced in `THIRD_PARTY_NOTICES.md` and included in packaged builds.
 
 ## License
 
-TuckNote is available under the [MIT License](LICENSE). Copyright (c) 2026 lyunify.
+TuckNotes is available under the [MIT License](LICENSE). Copyright (c) 2026 lyunify.

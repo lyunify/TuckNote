@@ -59,13 +59,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(
             systemSymbolName: "note.text",
-            accessibilityDescription: "TuckNote"
+            accessibilityDescription: "TuckNotes"
         )
         let menu = NSMenu()
         menu.addItem(withTitle: "Show", action: #selector(showPanel), keyEquivalent: "")
         menu.addItem(withTitle: "Hide", action: #selector(hidePanel), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit TuckNote", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit TuckNotes", action: #selector(quit), keyEquivalent: "q")
         menu.items.forEach { $0.target = self }
         item.menu = menu
         statusItem = item

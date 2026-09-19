@@ -17,11 +17,8 @@ struct NotePage: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-enum NotebookError: Error, Equatable { case pageLimitReached }
-
 struct Notebook: Codable, Equatable, Sendable {
     static let currentSchemaVersion = 1
-    static let maximumPageCount = 5
     var schemaVersion: Int
     private var storedPages: [NotePage]
     private var storedActivePageID: UUID
@@ -66,11 +63,11 @@ struct Notebook: Codable, Equatable, Sendable {
             )
         }
         let pages = try container.decode([NotePage].self, forKey: .pages)
-        guard (1...Self.maximumPageCount).contains(pages.count) else {
+        guard !pages.isEmpty else {
             throw DecodingError.dataCorruptedError(
                 forKey: .pages,
                 in: container,
-                debugDescription: "Notebook page count must be between 1 and \(Self.maximumPageCount)."
+                debugDescription: "Notebook must contain at least one page."
             )
         }
         self.init(
@@ -92,8 +89,7 @@ struct Notebook: Codable, Equatable, Sendable {
         return Notebook(schemaVersion: currentSchemaVersion, pages: [page], activePageID: page.id)
     }
 
-    mutating func addPage() throws {
-        guard pages.count < Self.maximumPageCount else { throw NotebookError.pageLimitReached }
+    mutating func addPage() {
         let page = NotePage()
         pages.append(page)
         activePageID = page.id
@@ -111,7 +107,6 @@ struct Notebook: Codable, Equatable, Sendable {
     }
 
     private static func normalizedPages(_ pages: [NotePage]) -> [NotePage] {
-        let pages = Array(pages.prefix(maximumPageCount))
         return pages.isEmpty ? [NotePage()] : pages
     }
 }

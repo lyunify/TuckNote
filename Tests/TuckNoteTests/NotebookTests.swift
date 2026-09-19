@@ -15,12 +15,10 @@ final class NotebookTests: XCTestCase {
         XCTAssertEqual(notebook.pages[0].markdown, "")
     }
 
-    func testAddingSixthPageThrowsLimitReached() throws {
+    func testAddingPagesHasNoFixedLimit() {
         var notebook = Notebook.blank()
-        for _ in 1..<Notebook.maximumPageCount { try notebook.addPage() }
-        XCTAssertThrowsError(try notebook.addPage()) { error in
-            XCTAssertEqual(error as? NotebookError, .pageLimitReached)
-        }
+        for _ in 1..<40 { notebook.addPage() }
+        XCTAssertEqual(notebook.pages.count, 40)
     }
 
     func testRemovingLastPageClearsItInsteadOfDeletingIt() {
@@ -58,18 +56,18 @@ final class NotebookTests: XCTestCase {
         ))
     }
 
-    func testDecodingMoreThanMaximumPagesIsRejected() throws {
-        let pages = (0...Notebook.maximumPageCount).map { _ in NotePage() }
+    func testDecodingManyPagesPreservesEveryPage() throws {
+        let pages = (0..<40).map { _ in NotePage() }
         let payload = NotebookPayload(
             schemaVersion: Notebook.currentSchemaVersion,
             pages: pages,
             activePageID: pages[0].id
         )
 
-        XCTAssertThrowsError(try JSONDecoder().decode(
+        XCTAssertEqual(try JSONDecoder().decode(
             Notebook.self,
             from: JSONEncoder().encode(payload)
-        ))
+        ).pages, pages)
     }
 
     func testDecodingInvalidActivePageIDActivatesFirstPage() throws {
@@ -88,8 +86,8 @@ final class NotebookTests: XCTestCase {
         XCTAssertEqual(notebook.activePageID, firstPage.id)
     }
 
-    func testConstructingMoreThanMaximumPagesKeepsFirstFive() {
-        let pages = (0...Notebook.maximumPageCount).map { _ in NotePage() }
+    func testConstructingManyPagesPreservesPagesAndActiveID() {
+        let pages = (0..<40).map { _ in NotePage() }
 
         let notebook = Notebook(
             schemaVersion: Notebook.currentSchemaVersion,
@@ -97,8 +95,8 @@ final class NotebookTests: XCTestCase {
             activePageID: pages.last!.id
         )
 
-        XCTAssertEqual(notebook.pages.count, Notebook.maximumPageCount)
-        XCTAssertEqual(notebook.activePageID, pages[0].id)
+        XCTAssertEqual(notebook.pages, pages)
+        XCTAssertEqual(notebook.activePageID, pages.last!.id)
     }
 
     func testAssigningEmptyPagesRecoversOneBlankActivePage() {
@@ -111,13 +109,13 @@ final class NotebookTests: XCTestCase {
         XCTAssertEqual(notebook.pages.first?.markdown, "")
     }
 
-    func testAssigningMoreThanMaximumPagesKeepsFirstFiveAndValidActivePage() {
+    func testAssigningManyPagesPreservesAllPagesAndValidActivePage() {
         var notebook = Notebook.blank()
-        let pages = (0...Notebook.maximumPageCount).map { _ in NotePage() }
+        let pages = (0..<40).map { _ in NotePage() }
 
         notebook.pages = pages
 
-        XCTAssertEqual(notebook.pages.count, Notebook.maximumPageCount)
+        XCTAssertEqual(notebook.pages, pages)
         XCTAssertEqual(notebook.activePageID, pages[0].id)
         XCTAssertTrue(notebook.pages.contains { $0.id == notebook.activePageID })
     }

@@ -3,6 +3,52 @@ import XCTest
 @testable import TuckNote
 
 final class MarkdownEditorTests: XCTestCase {
+    @MainActor
+    func testAtomicListDeletionDoesNotChangeLiteralCodeOrBodyText() {
+        for (source, caret) in [("```\n- \n```", 6), ("~~~md\n- [ ] \n~~~", 12), ("- body", 5)] {
+            let editor = NSTextView()
+            editor.string = source
+            editor.setSelectedRange(NSRange(location: caret, length: 0))
+            XCTAssertFalse(MarkdownListPrefix.deleteBackward(in: editor))
+            XCTAssertEqual(editor.string, source)
+        }
+    }
+
+    func testListToolbarPreservesUnicodeSelectionAcrossMultipleLines() throws {
+        let text = "中文\nhello"
+        let edit = try XCTUnwrap(MarkdownSelectionEdit.make(command: .task, text: text, selection: NSRange(location: 0, length: text.utf16.count)))
+        XCTAssertEqual(edit.replacement, "- [ ] 中文\n- [ ] hello")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 6, length: 14))
+        let toggle = try XCTUnwrap(MarkdownSelectionEdit.make(command: .task, text: edit.replacement, selection: edit.selectedRange))
+        XCTAssertEqual(toggle.replacement, text)
+        XCTAssertEqual(toggle.selectedRange, NSRange(location: 0, length: text.utf16.count))
+    }
+
+    func testListToolbarLeavesCaretAfterEmptyMarker() throws {
+        for (command, prefix) in [(MarkdownToolbarCommand.bullet, "- "), (.task, "- [ ] ")] {
+            let edit = try XCTUnwrap(MarkdownSelectionEdit.make(command: command, text: "", selection: NSRange(location: 0, length: 0)))
+            XCTAssertEqual(edit.replacement, prefix)
+            XCTAssertEqual(edit.selectedRange, NSRange(location: prefix.utf16.count, length: 0))
+        }
+    }
+
+    func testListToolbarPreservesCaretAndTogglesExistingList() throws {
+        for (command, prefix) in [(MarkdownToolbarCommand.bullet, "- "), (.task, "- [ ] ")] {
+            let first = try XCTUnwrap(MarkdownSelectionEdit.make(command: command, text: "hello", selection: NSRange(location: 3, length: 0)))
+            XCTAssertEqual(first.replacement, prefix + "hello")
+            XCTAssertEqual(first.selectedRange, NSRange(location: prefix.utf16.count + 3, length: 0))
+            let second = try XCTUnwrap(MarkdownSelectionEdit.make(command: command, text: first.replacement, selection: first.selectedRange))
+            XCTAssertEqual(second.replacement, "hello")
+            XCTAssertEqual(second.selectedRange, NSRange(location: 3, length: 0))
+        }
+    }
+
+    func testChangingBulletToTaskReplacesRatherThanStacksPrefixes() throws {
+        let edit = try XCTUnwrap(MarkdownSelectionEdit.make(command: .task, text: "- hello", selection: NSRange(location: 7, length: 0)))
+        XCTAssertEqual(edit.replacement, "- [ ] hello")
+        XCTAssertEqual(edit.selectedRange, NSRange(location: 11, length: 0))
+    }
+
     func testPageSwitchResetsToolbarSelectionToIncomingPageSelection() {
         var state = EditorSelectionState(
             documentID: "first",
@@ -232,13 +278,13 @@ final class MarkdownEditorTests: XCTestCase {
         XCTAssertEqual(protected, NSRange(location: 6, length: 0))
     }
 
-    func testTaskCursorProtectionMovesSelectionOutOfCheckboxSyntax() {
+    func testTaskCursorProtectionPreservesSelectionAcrossCheckboxSyntax() {
         let protected = MarkdownTaskCursorProtection.protect(
             text: "- [ ] study",
             selection: NSRange(location: 0, length: 5)
         )
 
-        XCTAssertEqual(protected, NSRange(location: 6, length: 0))
+        XCTAssertEqual(protected, NSRange(location: 0, length: 5))
     }
 
     func testTaskCursorProtectionMovesInsertionOutOfBulletMarker() {
@@ -250,13 +296,13 @@ final class MarkdownEditorTests: XCTestCase {
         XCTAssertEqual(protected, NSRange(location: 2, length: 0))
     }
 
-    func testTaskCursorProtectionMovesSelectionOutOfBulletMarker() {
+    func testTaskCursorProtectionPreservesSelectionAcrossBulletMarker() {
         let protected = MarkdownTaskCursorProtection.protect(
             text: "- study",
             selection: NSRange(location: 0, length: 1)
         )
 
-        XCTAssertEqual(protected, NSRange(location: 2, length: 0))
+        XCTAssertEqual(protected, NSRange(location: 0, length: 1))
     }
 
     func testTaskCursorProtectionMovesInsertionOutOfNumberedMarker() {
@@ -636,11 +682,7 @@ final class MarkdownEditorTests: XCTestCase {
             )
             coordinator.resolveAssociationAndApplySelection()
 
-            let protectedSelection = MarkdownTaskCursorProtection.protect(
-                text: editor.string,
-                selection: edit.selectedRange
-            )
-            XCTAssertEqual(editor.selectedRange(), protectedSelection, command.title)
+            XCTAssertEqual(editor.selectedRange(), edit.selectedRange, command.title)
             XCTAssertEqual(coordinator.lastAppliedRequestID, request.id, command.title)
             coordinator.stopObserving()
         }

@@ -87,6 +87,55 @@ actor SuspendingStoreStorage: NotebookStorage {
 
 @MainActor
 final class NoteStoreTests: XCTestCase {
+    func testManyPagesCanBeSavedAndReloadedWithoutTruncation() async throws {
+        let storage = StoreStorageSpy()
+        let store = NoteStore(storage: storage, saveDelay: .seconds(60))
+        await store.load()
+        for number in 1...30 {
+            store.addPage()
+            store.updateMarkdown("page \(number)")
+        }
+        XCTAssertEqual(store.notebook.pages.count, 31)
+        let encoded = try JSONEncoder().encode(store.notebook)
+        let decoded = try JSONDecoder().decode(Notebook.self, from: encoded)
+        XCTAssertEqual(decoded.pages.count, 31)
+        XCTAssertEqual(decoded.pages.last?.markdown, "page 30")
+        XCTAssertNil(store.notice)
+    }
+
+    func testPageControlsAddAndNavigateWithoutWrapping() async {
+        let store = NoteStore(storage: StoreStorageSpy(), saveDelay: .seconds(60))
+        await store.load()
+        for _ in 0..<12 { store.addPage() }
+        XCTAssertEqual(store.notebook.pages.count, 13)
+        let last = store.activePage.id
+        store.selectAdjacentPage(offset: 1)
+        XCTAssertEqual(store.activePage.id, last)
+        for _ in 0..<12 { store.selectAdjacentPage(offset: -1) }
+        XCTAssertEqual(store.activePage.id, store.notebook.pages[0].id)
+        store.removeActivePage()
+        XCTAssertEqual(store.notebook.pages.count, 12)
+        for _ in 0..<14 { store.removeActivePage() }
+        XCTAssertEqual(store.notebook.pages.count, 1)
+        XCTAssertEqual(store.activePage.markdown, "")
+    }
+
+    func testDelayedEditorCallbacksRemainScopedToTheirPage() async {
+        let store = NoteStore(storage: StoreStorageSpy(), saveDelay: .seconds(60))
+        await store.load()
+        let first = store.activePage.id
+        store.addPage()
+        store.updateMarkdown("first page", pageID: first)
+        store.updateSelection(location: 3, length: 2, pageID: first)
+        XCTAssertEqual(store.activePage.markdown, "")
+        XCTAssertEqual(store.notebook.pages[0].markdown, "first page")
+        XCTAssertEqual(store.notebook.pages[0].selectionLength, 2)
+        store.selectPage(first)
+        store.removeActivePage()
+        store.updateMarkdown("late callback", pageID: first)
+        XCTAssertEqual(store.activePage.markdown, "")
+    }
+
     func testEditingUpdatesActivePageAndFlushPersists() async {
         let storage = StoreStorageSpy()
         let store = NoteStore(storage: storage, saveDelay: .seconds(60))
@@ -204,17 +253,17 @@ final class NoteStoreTests: XCTestCase {
         XCTAssertEqual(store.activePage.id, addedID)
     }
 
-    func testAddingBeyondFivePagesShowsLimitNotice() async {
+    func testAddingBeyondFivePagesDoesNotShowLimitNotice() async {
         let store = NoteStore(storage: StoreStorageSpy(), saveDelay: .seconds(60))
         await store.load()
 
-        for _ in 1..<Notebook.maximumPageCount {
+        for _ in 1..<6 {
             store.addPage()
         }
         store.addPage()
 
-        XCTAssertEqual(store.notebook.pages.count, Notebook.maximumPageCount)
-        XCTAssertNotNil(store.notice)
+        XCTAssertEqual(store.notebook.pages.count, 7)
+        XCTAssertNil(store.notice)
     }
 
     func testCorruptLoadUsesBlankNotebookAndShowsNotice() async {

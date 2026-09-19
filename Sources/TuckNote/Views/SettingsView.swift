@@ -22,7 +22,7 @@ struct SettingsView: View {
             Toggle("Keep panel pinned", isOn: $settings.isPanelPinned)
 
             KeyboardShortcuts.Recorder(
-                "Toggle TuckNote",
+                "Toggle TuckNotes",
                 name: .toggleTuckNote
             )
         }

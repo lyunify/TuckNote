@@ -91,11 +91,11 @@ struct MarkdownSelectionEdit: Equatable {
                 suffix: "`"
             )
         case .bullet:
-            return blockEdit(prefix: "- ", text: nsText, selection: selection)
+            return listEdit(command: command, prefix: "- ", text: nsText, selection: selection)
         case .numbered:
-            return blockEdit(prefix: "1. ", text: nsText, selection: selection)
+            return listEdit(command: command, prefix: "1. ", text: nsText, selection: selection)
         case .task:
-            return blockEdit(prefix: "- [ ] ", text: nsText, selection: selection)
+            return listEdit(command: command, prefix: "- [ ] ", text: nsText, selection: selection)
         case .quote:
             return blockEdit(prefix: "> ", text: nsText, selection: selection)
         }
@@ -150,6 +150,95 @@ struct MarkdownSelectionEdit: Equatable {
             selectedRange: NSRange(location: range.location, length: (replacement as NSString).length)
         )
     }
+
+    private static func listEdit(command: MarkdownToolbarCommand, prefix: String, text: NSString, selection: NSRange) -> Self {
+        let last = selection.length == 0 ? selection.location : NSMaxRange(selection) - 1
+        var range = NSUnionRange(text.lineRange(for: NSRange(location: selection.location, length: 0)),
+                                 text.lineRange(for: NSRange(location: last, length: 0)))
+        while range.length > 0, [10, 13].contains(text.character(at: NSMaxRange(range) - 1)) { range.length -= 1 }
+        let lines = text.substring(with: range).components(separatedBy: "\n")
+        let prefixes = lines.map { MarkdownListPrefix.parse($0) }
+        let remove = prefixes.allSatisfy { $0?.command == command }
+        var edits: [(range: NSRange, replacement: String)] = []
+        var offset = range.location
+        for (line, existing) in zip(lines, prefixes) {
+            let indent = existing?.indent ?? String(line.prefix { $0 == " " || $0 == "\t" })
+            let length = existing?.length ?? indent.utf16.count
+            edits.append((NSRange(location: offset, length: length), indent + (remove ? "" : prefix)))
+            offset += line.utf16.count + 1
+        }
+        func mapped(_ position: Int) -> Int {
+            var delta = 0
+            for edit in edits {
+                guard position >= edit.range.location else { break }
+                if position <= NSMaxRange(edit.range) {
+                    return edit.range.location + delta + edit.replacement.utf16.count
+                }
+                delta += edit.replacement.utf16.count - edit.range.length
+            }
+            return position + delta
+        }
+        let replacement = NSMutableString(string: text.substring(with: range))
+        for edit in edits.reversed() {
+            replacement.replaceCharacters(in: NSRange(location: edit.range.location - range.location, length: edit.range.length), with: edit.replacement)
+        }
+        let start = mapped(selection.location)
+        return Self(range: range, replacement: replacement as String,
+                    selectedRange: NSRange(location: start, length: max(0, mapped(NSMaxRange(selection)) - start)))
+    }
+}
+
+struct MarkdownListPrefix {
+    let indent: String
+    let length: Int
+    let command: MarkdownToolbarCommand
+    private static let pattern = try! NSRegularExpression(pattern: #"^([ \t]*)([-+*•]|\d+\.)[ \t]+(\[[ xX]\][ \t]*)?"#)
+
+    static func parse(_ line: String) -> Self? {
+        let text = line as NSString
+        guard let match = pattern.firstMatch(in: line, range: NSRange(location: 0, length: text.length)) else { return nil }
+        let marker = text.substring(with: match.range(at: 2))
+        return Self(indent: text.substring(with: match.range(at: 1)), length: match.range.length,
+                    command: match.range(at: 3).location != NSNotFound ? .task : (marker.hasSuffix(".") ? .numbered : .bullet))
+    }
+
+    @MainActor
+    static func deleteBackward(in editor: NSTextView) -> Bool {
+        let selection = editor.selectedRange()
+        guard editor.isEditable, !editor.hasMarkedText(), selection.length == 0 else { return false }
+        let text = editor.string as NSString
+        guard selection.location <= text.length else { return false }
+        let lineRange = text.lineRange(for: selection)
+        guard let prefix = parse(text.substring(with: lineRange)),
+              selection.location == lineRange.location + prefix.length,
+              !isInsideCodeFence(text.substring(to: lineRange.location)) else { return false }
+        let range = NSRange(location: lineRange.location, length: prefix.length)
+        editor.insertText("", replacementRange: range)
+        editor.setSelectedRange(NSRange(location: range.location, length: 0))
+        return true
+    }
+
+    private static func isInsideCodeFence(_ precedingText: String) -> Bool {
+        var openFence: (marker: Character, count: Int)?
+        for line in precedingText.components(separatedBy: .newlines) {
+            let indent = line.prefix { $0 == " " }
+            guard indent.count <= 3 else { continue }
+            let content = line.dropFirst(indent.count)
+            guard let marker = content.first, marker == "`" || marker == "~" else { continue }
+            let count = content.prefix { $0 == marker }.count
+            guard count >= 3 else { continue }
+            let suffix = content.dropFirst(count)
+            if let fence = openFence {
+                if marker == fence.marker, count >= fence.count,
+                   suffix.allSatisfy({ $0 == " " || $0 == "\t" }) {
+                    openFence = nil
+                }
+            } else if marker != "`" || !suffix.contains("`") {
+                openFence = (marker, count)
+            }
+        }
+        return openFence != nil
+    }
 }
 
 struct MarkdownTaskToggleEdit: Equatable {
@@ -203,7 +292,7 @@ enum MarkdownTaskCursorProtection {
 
     static func protect(text: String, selection: NSRange) -> NSRange {
         guard selection.location != NSNotFound,
-              selection.length >= 0 else {
+              selection.length == 0 else {
             return selection
         }
         let nsText = text as NSString
@@ -225,11 +314,7 @@ enum MarkdownTaskCursorProtection {
             location: lineRange.location,
             length: match.range.length
         )
-        let shouldProtect = selection.length == 0
-            ? NSLocationInRange(selection.location, protectedRange)
-            : selection.location < NSMaxRange(protectedRange)
-                && NSMaxRange(selection) > protectedRange.location
-        guard shouldProtect else { return selection }
+        guard NSLocationInRange(selection.location, protectedRange) else { return selection }
         return NSRange(location: NSMaxRange(protectedRange), length: 0)
     }
 }
@@ -381,7 +466,8 @@ struct MarkdownEditorAppearance {
     func apply(to textView: NSTextView) {
         textView.drawsBackground = true
         textView.backgroundColor = surface
-        textView.textColor = ink
+        // Setting textColor on a populated view repaints hidden Markdown markers.
+        if textView.string.isEmpty { textView.textColor = ink }
         textView.insertionPointColor = ink
         textView.typingAttributes[.foregroundColor] = ink
         guard let scrollView = textView.enclosingScrollView else { return }
@@ -409,6 +495,8 @@ enum TuckNoteTaskCheckboxPolisher {
         hidesCompletedTasks: Bool = false
     ) {
         guard let storage = textView.textStorage else { return }
+        storage.beginEditing()
+        defer { storage.endEditing() }
         let text = storage.string as NSString
         let fullRange = NSRange(location: 0, length: text.length)
         taskPattern.enumerateMatches(in: storage.string, range: fullRange) { match, _, _ in
@@ -664,6 +752,7 @@ struct MarkdownEditorView: View {
                     onSelectionChange: selectionChanged
                 )
             )
+            .id(editorRenderID)
         }
         .background(Color(nsColor: appearance.surface))
         .onChange(of: editorRenderID) {
@@ -1052,6 +1141,7 @@ final class TextSelectionCoordinator: NSObject {
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         guard event.window === textView?.window,
+              textView?.window?.firstResponder === textView,
               event.keyCode == 36 || event.keyCode == 76 else {
             return false
         }
@@ -1093,8 +1183,12 @@ final class TextSelectionCoordinator: NSObject {
             hidesCompletedTasks: hidesCompletedTasks
         )
         refreshTaskCheckboxOverlay()
-        let protectedRange = protectSelection(in: observedTextView)
-        onSelectionChange(protectedRange)
+        // Only nudge a direct click out of a rendered marker. Keyboard edits,
+        // drag selections and Select All must retain the user's exact range.
+        if NSApp.currentEvent?.type == .leftMouseDown || NSApp.currentEvent?.type == .leftMouseUp {
+            _ = protectSelection(in: observedTextView)
+        }
+        onSelectionChange(observedTextView.selectedRange())
     }
 
     @objc private func textDidChange(_ notification: Notification) {
@@ -1106,7 +1200,6 @@ final class TextSelectionCoordinator: NSObject {
             hidesCompletedTasks: hidesCompletedTasks
         )
         refreshTaskCheckboxOverlay()
-        _ = protectSelection(in: observedTextView)
     }
 
     private func protectSelection(in textView: NSTextView) -> NSRange {

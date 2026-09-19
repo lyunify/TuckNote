@@ -116,6 +116,7 @@ final class NotchPanelController {
     private let compactPanel: NSPanel
     private let expandedPanel: NSPanel
     private let resizeObserver = PanelResizeObserver()
+    private let settingsWindow: SettingsWindowController
     private var presentation = PanelPresentation.compact
     nonisolated(unsafe) private var localMonitor: Any?
     nonisolated(unsafe) private var globalMonitor: Any?
@@ -128,6 +129,7 @@ final class NotchPanelController {
         self.store = store
         self.imageStore = imageStore
         self.settings = settings
+        settingsWindow = SettingsWindowController(settings: settings)
         compactPanel = Self.makePanel()
         expandedPanel = Self.makePanel()
 
@@ -140,7 +142,10 @@ final class NotchPanelController {
         }
         compactPanel.contentView = compactView
         expandedPanel.contentView = NSHostingView(
-            rootView: NotebookView(store: store, settings: settings, imageStore: imageStore)
+            rootView: NotebookView(store: store, settings: settings, imageStore: imageStore, onOpenSettings: { [weak self] in
+                self?.collapse(animated: false)
+                self?.settingsWindow.present()
+            })
         )
         expandedPanel.minSize = NotchGeometry.minimumExpandedSize
         resizeObserver.onResize = { [weak self] frame in
@@ -259,6 +264,7 @@ final class NotchPanelController {
             shownPanel.orderFrontRegardless()
         }
         if presentation.showsExpandedPanel {
+            NSApp.activate(ignoringOtherApps: true)
             expandedPanel.makeKeyAndOrderFront(nil)
         }
     }
@@ -409,6 +415,40 @@ private final class PanelResizeObserver: NSObject, NSWindowDelegate {
     }
 }
 
-private final class NotchPanel: NSPanel {
+final class NotchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, event.keyCode == 51,
+           event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+           let editor = firstResponder as? NSTextView,
+           MarkdownListPrefix.deleteBackward(in: editor) { return }
+        super.sendEvent(event)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard let editor = firstResponder as? NSTextView,
+              event.type == .keyDown else { return super.performKeyEquivalent(with: event) }
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        if modifiers == [.command] {
+            switch key {
+            case "a": editor.selectAll(nil)
+            case "c": editor.copy(nil)
+            case "v": editor.paste(nil)
+            case "x": editor.cut(nil)
+            case "z":
+                editor.undoManager?.undo()
+                editor.didChangeText()
+            default: return super.performKeyEquivalent(with: event)
+            }
+            return true
+        }
+        if modifiers == [.command, .shift], key == "z" {
+            editor.undoManager?.redo()
+            editor.didChangeText()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }

@@ -49,8 +49,9 @@ final class NoteStore: ObservableObject {
         }
     }
 
-    func updateMarkdown(_ markdown: String) {
-        guard let index = activePageIndex else { return }
+    func updateMarkdown(_ markdown: String, pageID: UUID? = nil) {
+        guard let index = notebook.pages.firstIndex(where: { $0.id == (pageID ?? notebook.activePageID) }),
+              notebook.pages[index].markdown != markdown else { return }
         notebook.pages[index].markdown = markdown
         notebook.pages[index].modifiedAt = .now
         clampSelection(at: index)
@@ -58,20 +59,22 @@ final class NoteStore: ObservableObject {
     }
 
     func selectPage(_ id: UUID) {
-        guard notebook.pages.contains(where: { $0.id == id }) else { return }
+        guard notebook.activePageID != id,
+              notebook.pages.contains(where: { $0.id == id }) else { return }
         notebook.activePageID = id
         scheduleSave()
     }
 
     func addPage() {
-        do {
-            try notebook.addPage()
-            scheduleSave()
-        } catch NotebookError.pageLimitReached {
-            notice = "You can keep up to five pages."
-        } catch {
-            notice = "Could not add a page."
-        }
+        notebook.addPage()
+        scheduleSave()
+    }
+
+    func selectAdjacentPage(offset: Int) {
+        guard let index = activePageIndex else { return }
+        let next = index + offset
+        guard notebook.pages.indices.contains(next) else { return }
+        selectPage(notebook.pages[next].id)
     }
 
     func removeActivePage() {
@@ -79,12 +82,15 @@ final class NoteStore: ObservableObject {
         scheduleSave()
     }
 
-    func updateSelection(location: Int, length: Int) {
-        guard let index = activePageIndex else { return }
+    func updateSelection(location: Int, length: Int, pageID: UUID? = nil) {
+        guard let index = notebook.pages.firstIndex(where: { $0.id == (pageID ?? notebook.activePageID) }) else { return }
         let utf16Length = (notebook.pages[index].markdown as NSString).length
         let location = min(max(location, 0), utf16Length)
+        let length = min(max(length, 0), utf16Length - location)
+        guard notebook.pages[index].selectionLocation != location
+                || notebook.pages[index].selectionLength != length else { return }
         notebook.pages[index].selectionLocation = location
-        notebook.pages[index].selectionLength = min(max(length, 0), utf16Length - location)
+        notebook.pages[index].selectionLength = length
         scheduleSave()
     }
 
