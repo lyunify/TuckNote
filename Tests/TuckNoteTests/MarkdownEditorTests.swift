@@ -15,9 +15,9 @@ final class MarkdownEditorTests: XCTestCase {
     }
 
     func testListToolbarPreservesUnicodeSelectionAcrossMultipleLines() throws {
-        let text = "中文\nhello"
+        let text = "\u{4E2D}\u{6587}\nhello"
         let edit = try XCTUnwrap(MarkdownSelectionEdit.make(command: .task, text: text, selection: NSRange(location: 0, length: text.utf16.count)))
-        XCTAssertEqual(edit.replacement, "- [ ] 中文\n- [ ] hello")
+        XCTAssertEqual(edit.replacement, "- [ ] \u{4E2D}\u{6587}\n- [ ] hello")
         XCTAssertEqual(edit.selectedRange, NSRange(location: 6, length: 14))
         let toggle = try XCTUnwrap(MarkdownSelectionEdit.make(command: .task, text: edit.replacement, selection: edit.selectedRange))
         XCTAssertEqual(toggle.replacement, text)

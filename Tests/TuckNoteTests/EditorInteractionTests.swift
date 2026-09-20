@@ -96,7 +96,7 @@ final class EditorInteractionTests: XCTestCase {
     }
 
     func testSelectAllDeletesMixedMarkdownInOneEdit() async throws {
-        let fixture = try await EditorFixture("- first\n- [ ] task\n\n---\n\n**bold**\n中文")
+        let fixture = try await EditorFixture("- first\n- [ ] task\n\n---\n\n**bold**\n\u{4E2D}\u{6587}")
         defer { fixture.close() }
         fixture.editor.selectAll(nil)
         XCTAssertEqual(fixture.editor.selectedRange().length, fixture.editor.string.utf16.count)
@@ -110,13 +110,13 @@ final class EditorInteractionTests: XCTestCase {
         let fixture = try await EditorFixture("- [ ] task")
         defer { fixture.close() }
         fixture.editor.setSelectedRange(NSRange(location: 10, length: 0))
-        for character in " hello中文" {
+        for character in " hello\u{4E2D}\u{6587}" {
             fixture.editor.insertText(String(character), replacementRange: fixture.editor.selectedRange())
             await fixture.settle()
             XCTAssertEqual(fixture.editor.selectedRange(), NSRange(location: fixture.editor.string.utf16.count, length: 0))
             XCTAssertEqual(fixture.editor.textStorage?.attribute(NSAttributedString.Key("TaskCheckbox"), at: 2, effectiveRange: nil) as? Bool, false)
         }
-        XCTAssertEqual(fixture.store.activePage.markdown, "- [ ] task hello中文")
+        XCTAssertEqual(fixture.store.activePage.markdown, "- [ ] task hello\u{4E2D}\u{6587}")
     }
 
     func testRuleRevealsSourceWithoutKeepingRenderedLine() async throws {

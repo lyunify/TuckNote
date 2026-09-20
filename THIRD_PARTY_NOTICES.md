@@ -235,3 +235,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Website Assets
+
+The macOS Tahoe wallpaper in `docs/assets/macos-tahoe-light.jpg` is Apple artwork,
+resized for the website. Source: [Basic Apple Guy](https://basicappleguy.com/haberdashery/macos-tahoe),
+[original image](https://basicappleguy.com/s/macOS_Tahoe_Light.jpg).
+
+The Finder, Photos, Mail, and Calendar icons in `docs/assets/` depict Apple
+applications and were adapted from supplied reference images. These assets are
+not original TuckNotes artwork and are not covered by this repository's MIT
+license. Rights remain with their respective owners.

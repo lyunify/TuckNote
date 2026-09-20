@@ -5,3 +5,11 @@ dist/
 docs/superpowers/
 .worktrees/
 .specstory/
+.vscode/
+.local/
+/docs/README.md
+/TuckNotes-HANDOFF.md
+/TuckNotes-GitHub-handoff.zip
+/task_plan.md
+/findings.md
+/progress.md

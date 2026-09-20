@@ -2,91 +2,49 @@
 
 ![TuckNotes: Quick notes. Right in your notch.](Assets/ReadmeHero.png)
 
-Task-first notes, tucked into your MacBook notch.
+A native macOS notebook for the thoughts you want to keep close. Open it from your MacBook's notch to write Markdown, make a checklist, or drop in a screenshot, then tuck it away and get back to your day.
 
-TuckNotes is a small local Markdown notebook for quick tasks, links, ideas, and screenshots. It stays near the top of your screen, opens from the notch area when you need it, and gets out of the way when you do not.
+[Visit the website and try the demo](https://lyunify.github.io/TuckNote/)
 
-No account. No cloud sync. Your notes stay on your Mac.
+## Get Started
 
-Try the [TuckNotes product homepage and live demo](https://lyunify.github.io/TuckNote/). The static site source lives in [`docs/`](docs/).
+Requires **macOS 14 or later**. A packaged download is not available yet; you can build the app from source below.
 
-## Why TuckNotes
+- Hover over or click the top-center of your screen to open your notes.
+- Write Markdown, check off tasks, and paste or drag in images.
+- Use multiple pages to keep notes separate, switch between light and dark themes, or pin the panel open.
 
-- Lives in the notch area instead of another window, tab, or menu bar popover.
-- Opens quickly for short notes and task capture, then collapses back into a compact panel.
-- Treats tasks as a first-class workflow with checkbox polish, progress, and `Cmd+Enter` toggling.
-- Supports Markdown without turning the app into a heavy document editor.
-- Keeps notebook data local by default.
+Notes and images save automatically on your Mac in `~/Library/Application Support/TuckNote/`. No account or cloud sync is required. Replacing the app does not remove this data.
 
-## Features
-
-- Notch-mounted compact and expanded panels
-- Hover or click presentation modes
-- Pin mode for keeping the note panel open
-- Resizable centered panel
-- Light and dark themes with a quick sun/moon toggle
-- Local Markdown pages with no fixed page limit
-- Headings, links, lists, task lists, and fenced code blocks
-- Task progress such as `2/5 done`
-- Hide completed tasks without changing the underlying Markdown
-- Paste or drag inline PNG attachments
-- Global keyboard shortcut support
-- Automatic local saves and damaged-notebook recovery
-
-## Using TuckNotes
-
-Open TuckNotes by hovering or clicking the notch zone, or by using the global keyboard shortcut. Pin it when you want it to stay visible while switching apps.
-
-Use the editor toolbar for Markdown formatting, list creation, task insertion, and code blocks. Put the cursor on a task line and press `Cmd+Enter` to toggle completion. The eye button hides completed tasks from view while preserving the original Markdown.
-
-Use the sun/moon button next to the pin control to switch between light and dark themes.
-
-## Privacy And Local Data
-
-TuckNotes stores notes and images only on your Mac in:
-
-```text
-~/Library/Application Support/TuckNote/
-```
-
-The notebook is saved as `notebook.json`; attached images live in the `Images` directory. TuckNotes does not sync content, create an account, or send notebook data to a service.
-
-## How It Works
-
-TuckNotes is a SwiftUI app hosted inside an AppKit panel. `NotchPanelController` owns the floating panel, hover behavior, pinning, resizing, and screen positioning. `NotchGeometry` keeps the expanded panel aligned with the notch and away from unsafe screen areas.
-
-`NotebookView` renders the main note shell, page controls, theme toggle, and settings entry point. `MarkdownEditorView` wraps the native Markdown editor experience, including toolbar actions, task checkbox rendering, cursor protection, code block styling, and task progress.
-
-Notebook state is managed by `NoteStore`. `FileNotebookStorage` writes the notebook JSON to Application Support, while `ImageStore` manages pasted or dropped PNG attachments. `GlobalShortcutService` bridges the app lifecycle with the global shortcut dependency.
-
-## Requirements
-
-- macOS 14 Sonoma or later
-- Swift 6 toolchain and Xcode Command Line Tools for source builds
+The website demo is a separate, temporary playground: refreshing it clears its contents.
 
 ## Development
 
+With a Swift 6 toolchain installed:
+
 ```sh
-swift build
+swift run TuckNote
 swift test
 ```
 
-Create an unsigned release app and ZIP archive with:
+To create a local app bundle and ZIP:
 
 ```sh
 ./Scripts/package-app.sh
+open dist/TuckNotes.app
 ```
 
-The artifacts are written to `dist/TuckNotes.app` and `dist/TuckNotes-macOS.zip`.
+The output is `dist/TuckNotes.app` and `dist/TuckNotes-macOS.zip`. Move the app into Applications to keep it installed. The script builds for the host architecture, not a Universal binary. Local builds are not Developer ID signed or notarized, so macOS may display a security warning.
 
-## Opening Unsigned Builds
+## Built With
 
-Release artifacts are not signed or notarized. On first launch, Control-click or right-click `TuckNotes.app` in Finder, choose **Open**, then confirm **Open**. macOS remembers that choice for later launches. Only bypass this warning for a build you trust.
+- **SwiftUI and AppKit** for the interface, floating panel, and notch interaction.
+- **MarkdownEngine** for Markdown editing and inline images.
+- **KeyboardShortcuts** for the global shortcut.
+- **Local JSON files and UserDefaults** for notes and preferences.
 
-## Credits
-
-TuckNotes uses [MarkdownEngine](https://github.com/nodes-app/swift-markdown-engine) under the Apache License 2.0 and [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) under the MIT License. Their license texts are reproduced in `THIRD_PARTY_NOTICES.md` and included in packaged builds.
+GitHub Actions checks tests and packaging. The [product website](https://lyunify.github.io/TuckNote/) is served from `docs/` through GitHub Pages.
 
 ## License
 
-TuckNotes is available under the [MIT License](LICENSE). Copyright (c) 2026 lyunify.
+[MIT](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for dependency licenses and website asset credits.
