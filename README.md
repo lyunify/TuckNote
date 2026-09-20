@@ -6,9 +6,20 @@ A native macOS notebook for the thoughts you want to keep close. Open it from yo
 
 [Visit the website and try the demo](https://lyunify.github.io/TuckNote/)
 
-## Get Started
+## Download and Install
 
-Supports **Apple Silicon and Intel Macs** running **macOS 14 or later**. A packaged download is not available yet; you can build the app from source below.
+Supports **Apple Silicon and Intel Macs** running **macOS 14 or later**. One download works on both.
+
+[Download TuckNotes for Mac](https://github.com/lyunify/TuckNote/releases/latest/download/TuckNotes-macOS.zip)
+
+1. Extract `TuckNotes-macOS.zip`.
+2. Move `TuckNotes.app` to Applications, then open it.
+
+This release is not Developer ID signed or notarized by Apple. If macOS blocks the first launch and you trust this download, go to **System Settings > Privacy & Security > Open Anyway** after attempting to open the app. See [Apple's instructions](https://support.apple.com/en-us/102445).
+
+Release notes and a SHA-256 checksum are available on the [latest release](https://github.com/lyunify/TuckNote/releases/latest).
+
+## Use TuckNotes
 
 - Hover over or click the top-center of your screen to open your notes.
 - Write Markdown, check off tasks, and paste or drag in images.
@@ -34,7 +45,7 @@ To create a local app bundle and ZIP:
 open dist/TuckNotes.app
 ```
 
-The output is `dist/TuckNotes.app` and `dist/TuckNotes-macOS.zip`. The universal app includes both Apple Silicon and Intel versions; you only need one download. Move the app into Applications to keep it installed. Local builds are not Developer ID signed or notarized, so macOS may display a security warning.
+The output is `dist/TuckNotes.app`, `dist/TuckNotes-macOS.zip`, and `dist/SHA256SUMS.txt`. The universal app includes both Apple Silicon and Intel versions; you only need one download. Move the app into Applications to keep it installed. Local builds are not Developer ID signed or notarized, so macOS may display a security warning.
 
 On a Mac without a notch, use the same top-center screen area to open your notes.
 

@@ -74,6 +74,9 @@ h1 { font-size: clamp(64px, 6.1vw, 88px); letter-spacing: -4px; line-height: 1.0
 .intro { color: #c0d0e5; font-size: 17px; line-height: 1.8; }
 .intro span { color: var(--pink); }
 .compatibility { color: #a9b5c9; }
+.download-note { margin: 8px 0 0; color: #a9b5c9; font-size: 12px; line-height: 1.6; }
+.download-note a { text-decoration: underline; text-underline-offset: 3px; }
+.download-note a:hover { color: #edf2fb; }
 .secondary { color: #e0e8f7; }
 .demo-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 4px 76px; }
 .demo-caption { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; font-size: 18px; line-height: 1.3; letter-spacing: -.4px; font-weight: 600; color: #edf2fb; }
