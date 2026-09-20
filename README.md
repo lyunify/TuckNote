@@ -8,7 +8,7 @@ TuckNotes is a small local Markdown notebook for quick tasks, links, ideas, and 
 
 No account. No cloud sync. Your notes stay on your Mac.
 
-The static product page lives at [`docs/index.html`](docs/index.html).
+Try the [TuckNotes product homepage and live demo](https://lyunify.github.io/TuckNote/). The static site source lives in [`docs/`](docs/).
 
 ## Why TuckNotes
 

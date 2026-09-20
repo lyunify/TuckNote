@@ -2,6 +2,12 @@
 
 一个可直接用于 GitHub Pages 的静态产品页。无需安装依赖、打包工具、API key 或服务器。
 
+## 已发布的产品主页
+
+正式地址：https://lyunify.github.io/TuckNote/
+
+发布来源为 `lyunify/TuckNote` 仓库的 `main` 分支、`/docs` 目录。更新这些静态文件后推送到 `main`，GitHub Pages 会自动重新发布。保留 `.nojekyll` 和相对资源路径；当前 GitHub 按钮维持不变，只有核实真实安装包地址后才改为下载按钮。
+
 ## 本地预览
 
 解压后双击 `index.html` 即可。所有图片、样式和交互都随文件包提供，无外部字体、追踪脚本或 CDN 依赖。
@@ -15,7 +21,7 @@
 3. 选择保存网页的分支，再选 **/(root)** 或 **/docs**。
 4. 点击 **Save**，等待 GitHub 显示访问地址。
 
-已有网站时请先保留旧版，再替换同名页面。本次交付没有修改现有 TuckNote app 项目，也没有发布到线上。
+已有网站时请先保留旧版，再替换同名页面。本次网站接入未修改原生 App 源码。
 
 GitHub 官方说明：https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
 
