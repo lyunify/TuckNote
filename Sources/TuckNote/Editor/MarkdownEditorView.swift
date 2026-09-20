@@ -63,19 +63,9 @@ struct MarkdownSelectionEdit: Equatable {
 
         switch command {
         case .bold:
-            return inlineEdit(
-                selection: selection,
-                selectedText: nsText.substring(with: selection),
-                prefix: "**",
-                suffix: "**"
-            )
+            return emphasisEdit(text: nsText, selection: selection, width: 2)
         case .italic:
-            return inlineEdit(
-                selection: selection,
-                selectedText: nsText.substring(with: selection),
-                prefix: "*",
-                suffix: "*"
-            )
+            return emphasisEdit(text: nsText, selection: selection, width: 1)
         case .link:
             return inlineEdit(
                 selection: selection,
@@ -99,6 +89,50 @@ struct MarkdownSelectionEdit: Equatable {
         case .quote:
             return blockEdit(prefix: "> ", text: nsText, selection: selection)
         }
+    }
+
+    private static func emphasisEdit(text: NSString, selection: NSRange, width: Int) -> Self {
+        var content = selection
+        if content.length > 0 {
+            let line = text.lineRange(for: NSRange(location: content.location, length: 0))
+            if content.location == line.location,
+               let prefix = MarkdownListPrefix.parse(text.substring(with: line)) {
+                let skipped = min(prefix.length, content.length)
+                content.location += skipped
+                content.length -= skipped
+            }
+            let trimmed = text.substring(with: content).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                content = text.range(of: trimmed, options: .literal, range: content)
+            } else {
+                return Self(range: selection, replacement: text.substring(with: selection), selectedRange: selection)
+            }
+        }
+
+        let marker = String(repeating: "*", count: width)
+        // An empty pair has no parsed emphasis yet, but pressing the same button must undo it.
+        if content.length == 0, content.location >= width, content.location + width <= text.length,
+           text.substring(with: NSRange(location: content.location - width, length: width * 2)) == marker + marker {
+            return Self(range: NSRange(location: content.location - width, length: width * 2), replacement: "",
+                        selectedRange: NSRange(location: content.location - width, length: 0))
+        }
+        if let removal = MarkdownEmphasis(text as String).removingStyle(in: text, selection: content, width: width) {
+            return removal
+        }
+        return inlineEdit(selection: content, selectedText: text.substring(with: content), prefix: marker, suffix: marker)
+    }
+
+    @MainActor
+    static func apply(_ command: MarkdownToolbarCommand, to editor: NSTextView) -> Bool {
+        guard editor.isEditable, !editor.hasMarkedText(),
+              editor.delegate is NativeTextViewCoordinator,
+              let edit = make(command: command, text: editor.string, selection: editor.selectedRange()) else { return false }
+        editor.breakUndoCoalescing()
+        editor.insertText(edit.replacement, replacementRange: edit.range)
+        editor.setSelectedRange(edit.selectedRange)
+        editor.undoManager?.setActionName(command.title)
+        editor.breakUndoCoalescing()
+        return true
     }
 
     private static func inlineEdit(
@@ -484,6 +518,8 @@ enum EditorRenderIdentity {
 
 @MainActor
 enum TuckNoteTaskCheckboxPolisher {
+    private static let visibleFont = NSAttributedString.Key("TuckNotesVisibleTaskFont")
+    private static let visibleParagraph = NSAttributedString.Key("TuckNotesVisibleTaskParagraph")
     private static let taskPattern = try! NSRegularExpression(
         pattern: #"^([ \t]*)([-•*+]|\d+\.)([ \t]+)(\[[ xX]\])(?=[ \t]|$)"#,
         options: [.anchorsMatchLines]
@@ -494,7 +530,7 @@ enum TuckNoteTaskCheckboxPolisher {
         appearance: MarkdownEditorAppearance = .tuckNote(),
         hidesCompletedTasks: Bool = false
     ) {
-        guard let storage = textView.textStorage else { return }
+        guard !textView.hasMarkedText(), let storage = textView.textStorage else { return }
         storage.beginEditing()
         defer { storage.endEditing() }
         let text = storage.string as NSString
@@ -524,12 +560,21 @@ enum TuckNoteTaskCheckboxPolisher {
             restoreCompletedTaskLineAttributes(in: storage, range: lineRange)
 
             if isChecked, hidesCompletedTasks {
+                let paragraph = storage.attribute(.paragraphStyle, at: lineRange.location, effectiveRange: nil) as? NSParagraphStyle
+                    ?? visibleTaskParagraphStyle
+                storage.addAttribute(visibleParagraph, value: paragraph, range: lineRange)
+                storage.enumerateAttribute(.font, in: lineRange) { value, range, _ in
+                    storage.addAttribute(visibleFont, value: value as? NSFont ?? NSFont.systemFont(ofSize: 14), range: range)
+                }
                 storage.addAttributes(hiddenCompletedTaskAttributes, range: lineRange)
                 storage.addAttribute(.taskCheckbox, value: isChecked, range: checkboxRange)
                 return
             }
 
-            storage.addAttribute(.paragraphStyle, value: visibleTaskParagraphStyle, range: lineRange)
+            // Keep the engine's hanging indent and line metrics, including during IME restyles.
+            if storage.attribute(.paragraphStyle, at: lineRange.location, effectiveRange: nil) == nil {
+                storage.addAttribute(.paragraphStyle, value: visibleTaskParagraphStyle, range: lineRange)
+            }
             storage.addAttribute(.foregroundColor, value: NSColor.clear, range: syntaxRange)
             storage.addAttribute(.taskCheckbox, value: isChecked, range: checkboxRange)
             guard contentRange.length > 0 else { return }
@@ -548,13 +593,17 @@ enum TuckNoteTaskCheckboxPolisher {
         in storage: NSTextStorage,
         range: NSRange
     ) {
-        storage.removeAttribute(.paragraphStyle, range: range)
+        storage.enumerateAttribute(visibleParagraph, in: range) { value, paragraphRange, _ in
+            guard let paragraph = value as? NSParagraphStyle else { return }
+            storage.addAttribute(.paragraphStyle, value: paragraph, range: paragraphRange)
+        }
+        storage.removeAttribute(visibleParagraph, range: range)
         storage.removeAttribute(.strikethroughColor, range: range)
-        storage.addAttribute(
-            .font,
-            value: NSFont.systemFont(ofSize: 14),
-            range: range
-        )
+        storage.enumerateAttribute(visibleFont, in: range) { value, fontRange, _ in
+            guard let font = value as? NSFont else { return }
+            storage.addAttribute(.font, value: font, range: fontRange)
+        }
+        storage.removeAttribute(visibleFont, range: range)
     }
 
     private static var visibleTaskParagraphStyle: NSParagraphStyle {
@@ -681,12 +730,9 @@ struct MarkdownEditorView: View {
     let onImagePasteError: () -> Void
 
     @State private var selectionState: EditorSelectionState
-    @State private var pendingReplacement: InlineReplacementRequest?
-    @State private var requestedSelection: EditorSelectionRequest?
+    @State private var editorTarget = MarkdownEditorTarget()
     @State private var hidesCompletedTasks = false
 
-    private let boldRequest = Notification.Name("TuckNote.Markdown.Bold")
-    private let italicRequest = Notification.Name("TuckNote.Markdown.Italic")
     init(
         text: Binding<String>,
         documentID: String,
@@ -731,10 +777,8 @@ struct MarkdownEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
             NativeTextViewWrapper(
                 text: $text,
-                pendingInlineReplacement: $pendingReplacement,
                 configuration: configuration,
                 fontName: NSFont.systemFont(ofSize: 14).fontName,
                 fontSize: 14,
@@ -745,31 +789,41 @@ struct MarkdownEditorView: View {
                 TextSelectionMonitor(
                     documentID: editorRenderID,
                     initialSelection: initialSelection,
-                    requestedSelection: requestedSelection,
+                    requestedSelection: nil,
                     appearance: appearance,
                     hidesCompletedTasks: hidesCompletedTasks,
                     onDropImage: dropImage,
-                    onSelectionChange: selectionChanged
+                    onSelectionChange: selectionChanged,
+                    onResolve: { editor, identity in
+                        editorTarget.textView = editor
+                        editorTarget.documentID = identity
+                    }
                 )
             )
             .id(editorRenderID)
+            toolbar
         }
         .background(Color(nsColor: appearance.surface))
         .onChange(of: editorRenderID) {
             selectionState.synchronize(documentID: editorRenderID, selection: initialSelection)
-            pendingReplacement = nil
-            requestedSelection = nil
         }
     }
 
     private var toolbar: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 2) {
             ForEach(MarkdownToolbarCommand.allCases) { command in
+                if command == .bullet || command == .quote {
+                    Rectangle()
+                        .fill(palette.border)
+                        .frame(width: 1, height: 12)
+                        .padding(.horizontal, 4)
+                }
                 Button {
                     apply(command)
                 } label: {
                     Image(systemName: command.symbol)
-                        .frame(width: 22, height: 22)
+                        .font(.system(size: 12))
+                        .frame(width: 22, height: 26)
                 }
                 .buttonStyle(.plain)
                 .help(command.title)
@@ -788,20 +842,24 @@ struct MarkdownEditorView: View {
                 .accessibilityLabel(hidesCompletedTasks ? "Show completed tasks" : "Hide completed tasks")
             }
             if taskProgress.total > 0 {
-                Text(taskProgress.summary)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(nsColor: appearance.mutedInk))
-                    .accessibilityLabel("\(taskProgress.completed) of \(taskProgress.total) tasks done")
+                ViewThatFits(in: .horizontal) {
+                    Text(taskProgress.summary).fixedSize()
+                    Text("\(taskProgress.completed)/\(taskProgress.total)")
+                        .minimumScaleFactor(0.8)
+                }
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .lineLimit(1)
+                .foregroundStyle(Color(nsColor: appearance.mutedInk))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(taskProgress.completed) of \(taskProgress.total) tasks done")
             }
         }
-        .foregroundStyle(Color(nsColor: appearance.ink))
-        .padding(.horizontal, 10)
-        .frame(height: 34)
-        .background(Color(nsColor: appearance.surface))
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color(nsColor: appearance.separator))
-                .frame(height: 1)
+        .foregroundStyle(palette.isLight ? palette.ink.opacity(0.72) : palette.ink)
+        .padding(.horizontal, 16)
+        .frame(height: 38)
+        .background(palette.toolbarSurface)
+        .overlay(alignment: .top) {
+            Rectangle().fill(palette.border.opacity(0.6)).frame(height: 0.5)
         }
     }
 
@@ -832,44 +890,27 @@ struct MarkdownEditorView: View {
         )
         let services = MarkdownEditorServices(
             images: TuckNoteImageProvider(store: imageStore),
-            syntaxHighlighter: highlighter,
-            bus: MarkdownEditorBus(
-                applyBoldRequest: boldRequest,
-                applyItalicRequest: italicRequest
-            )
+            syntaxHighlighter: highlighter
         )
         return MarkdownEditorConfiguration(
             theme: theme,
             services: services,
             lists: ListStyle(indentPerLevel: TuckNoteTheme.markdownListIndentPerLevel),
+            headings: HeadingStyle(fontMultipliers: [23.0 / 14.0, 1.4, 1.17, 1.0, 0.83, 0.67]),
             scrollers: .vertical,
             textInsets: TextInsets(
-                horizontal: TuckNoteTheme.markdownTextInsetHorizontal,
-                vertical: TuckNoteTheme.markdownTextInsetVertical
+                horizontal: 29,
+                vertical: 26
             )
         )
     }
 
     private func apply(_ command: MarkdownToolbarCommand) {
-        guard let edit = MarkdownSelectionEdit.make(
-            command: command,
-            text: text,
-            selection: selectionState.selection
-        ) else { return }
-        requestedSelection = EditorSelectionRequest(
-            documentID: editorRenderID,
-            range: edit.selectedRange
-        )
-        pendingReplacement = InlineReplacementRequest(
-            documentId: editorRenderID,
-            selection: WikiLinkSelection(
-                displayRange: edit.range,
-                storageRange: edit.range,
-                placeholder: ""
-            ),
-            storageFragment: edit.replacement,
-            isImageEmbedMode: true
-        )
+        guard editorTarget.documentID == editorRenderID,
+              let editor = editorTarget.textView else { return }
+        editor.window?.makeFirstResponder(editor)
+        editor.setSelectedRange(selectionState.selection)
+        _ = MarkdownSelectionEdit.apply(command, to: editor)
     }
 
     private func pasteImage(_ pasteboard: NSPasteboard) -> String? {
@@ -893,6 +934,12 @@ struct MarkdownEditorView: View {
         selectionState.selection = range
         onSelectionChange(range)
     }
+}
+
+@MainActor
+private final class MarkdownEditorTarget {
+    weak var textView: NSTextView?
+    var documentID: String?
 }
 
 struct EditorSelectionState: Equatable {
@@ -942,13 +989,16 @@ private struct TextSelectionMonitor: NSViewRepresentable {
     let hidesCompletedTasks: Bool
     let onDropImage: (NSPasteboard) -> String?
     let onSelectionChange: (NSRange) -> Void
+    let onResolve: (NSTextView, String) -> Void
 
     func makeCoordinator() -> Coordinator {
-        TextSelectionCoordinator(
+        let coordinator = TextSelectionCoordinator(
             appearance: appearance,
             onDropImage: onDropImage,
             onSelectionChange: onSelectionChange
         )
+        coordinator.onResolve = onResolve
+        return coordinator
     }
 
     func makeNSView(context: Context) -> SelectionMonitorView {
@@ -964,6 +1014,7 @@ private struct TextSelectionMonitor: NSViewRepresentable {
 
     func updateNSView(_ view: SelectionMonitorView, context: Context) {
         context.coordinator.onSelectionChange = onSelectionChange
+        context.coordinator.onResolve = onResolve
         context.coordinator.onDropImage = onDropImage
         context.coordinator.appearance = appearance
         context.coordinator.hidesCompletedTasks = hidesCompletedTasks
@@ -984,6 +1035,7 @@ private struct TextSelectionMonitor: NSViewRepresentable {
 
 @MainActor
 final class TextSelectionCoordinator: NSObject {
+    var onResolve: (NSTextView, String) -> Void = { _, _ in }
     var onSelectionChange: (NSRange) -> Void
     var onDropImage: (NSPasteboard) -> String?
     var appearance: MarkdownEditorAppearance
@@ -1000,6 +1052,16 @@ final class TextSelectionCoordinator: NSObject {
     private var imageDropView: ImageDropView?
     private var taskCheckboxOverlayView: TaskCheckboxOverlayView?
     private var keyMonitor: Any?
+    private var emphasisSource: String?
+    private var emphasis = MarkdownEmphasis("")
+
+    private func polishEmphasis(in editor: NSTextView) {
+        if emphasisSource != editor.string {
+            emphasisSource = editor.string
+            emphasis = MarkdownEmphasis(editor.string)
+        }
+        emphasis.hideMarkers(in: editor)
+    }
 
     init(
         appearance: MarkdownEditorAppearance = .tuckNote(),
@@ -1041,12 +1103,15 @@ final class TextSelectionCoordinator: NSObject {
         guard let hostView,
               let associatedTextView = Self.associatedTextView(for: hostView) else { return }
         textView = associatedTextView
+        if let documentID { onResolve(associatedTextView, documentID) }
+        guard !associatedTextView.hasMarkedText() else { return }
         appearance.apply(to: associatedTextView)
         TuckNoteTaskCheckboxPolisher.apply(
             to: associatedTextView,
             appearance: appearance,
             hidesCompletedTasks: hidesCompletedTasks
         )
+        polishEmphasis(in: associatedTextView)
         installImageDropView(for: associatedTextView)
         installTaskCheckboxOverlay(for: associatedTextView)
         refreshTaskCheckboxOverlay()
@@ -1176,12 +1241,14 @@ final class TextSelectionCoordinator: NSObject {
     @objc private func selectionDidChange(_ notification: Notification) {
         guard !suppressSelectionChanges,
               let observedTextView = notification.object as? NSTextView,
-              observedTextView === textView else { return }
+              observedTextView === textView,
+              !observedTextView.hasMarkedText() else { return }
         TuckNoteTaskCheckboxPolisher.apply(
             to: observedTextView,
             appearance: appearance,
             hidesCompletedTasks: hidesCompletedTasks
         )
+        polishEmphasis(in: observedTextView)
         refreshTaskCheckboxOverlay()
         // Only nudge a direct click out of a rendered marker. Keyboard edits,
         // drag selections and Select All must retain the user's exact range.
@@ -1193,12 +1260,14 @@ final class TextSelectionCoordinator: NSObject {
 
     @objc private func textDidChange(_ notification: Notification) {
         guard let observedTextView = notification.object as? NSTextView,
-              observedTextView === textView else { return }
+              observedTextView === textView,
+              !observedTextView.hasMarkedText() else { return }
         TuckNoteTaskCheckboxPolisher.apply(
             to: observedTextView,
             appearance: appearance,
             hidesCompletedTasks: hidesCompletedTasks
         )
+        polishEmphasis(in: observedTextView)
         refreshTaskCheckboxOverlay()
     }
 

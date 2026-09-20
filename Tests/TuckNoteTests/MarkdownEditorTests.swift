@@ -4,6 +4,88 @@ import XCTest
 
 final class MarkdownEditorTests: XCTestCase {
     @MainActor
+    func testTaskPolisherDoesNotAlterInputMethodComposition() throws {
+        let editor = NSTextView()
+        editor.string = "- [ ] **text** "
+        editor.setSelectedRange(NSRange(location: editor.string.utf16.count, length: 0))
+        editor.setMarkedText("ni hao", selectedRange: NSRange(location: 6, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertTrue(editor.hasMarkedText())
+        let original = NSAttributedString(attributedString: try XCTUnwrap(editor.textStorage))
+        let selection = editor.selectedRange()
+        let marked = editor.markedRange()
+        TuckNoteTaskCheckboxPolisher.apply(to: editor)
+        MarkdownEmphasis(editor.string).hideMarkers(in: editor)
+        XCTAssertEqual(editor.textStorage, original)
+        XCTAssertEqual(editor.selectedRange(), selection)
+        XCTAssertEqual(editor.markedRange(), marked)
+    }
+
+    func testEmphasisMarkersExcludeLiteralStarsAndCode() {
+        for source in ["`**code**`", "```\n**code**\n```", "\\*literal\\*", "---", "a_b_c", "[link](https://example.com/a**b)"] {
+            XCTAssertTrue(MarkdownEmphasis(source).markerRanges.isEmpty, source)
+        }
+        let source = "- [ ] **bold *and italic***"
+        let ranges = MarkdownEmphasis(source).markerRanges
+        XCTAssertEqual(ranges.map { (source as NSString).substring(with: $0) }, ["**", "*", "***"])
+    }
+
+    func testBoldToggleHandlesCaretAndPreservesNestedItalic() throws {
+        for (source, selection, expected, expectedSelection) in [
+            ("**hello**", NSRange(location: 4, length: 0), "hello", NSRange(location: 2, length: 0)),
+            ("**hello**", NSRange(location: 0, length: 9), "hello", NSRange(location: 0, length: 5)),
+            ("***hello***", NSRange(location: 3, length: 5), "*hello*", NSRange(location: 1, length: 5)),
+            ("__hello__", NSRange(location: 2, length: 5), "hello", NSRange(location: 0, length: 5))
+        ] {
+            let edit = try XCTUnwrap(MarkdownSelectionEdit.make(command: .bold, text: source, selection: selection))
+            XCTAssertEqual((source as NSString).replacingCharacters(in: edit.range, with: edit.replacement), expected)
+            XCTAssertEqual(edit.selectedRange, expectedSelection)
+        }
+    }
+
+    func testBoldAndItalicToggleOffWithoutAccumulatingMarkers() throws {
+        for (command, marker) in [(MarkdownToolbarCommand.bold, "**"), (.italic, "*")] {
+            let source = "A sentence"
+            let first = try XCTUnwrap(MarkdownSelectionEdit.make(command: command, text: source,
+                selection: NSRange(location: 0, length: source.utf16.count)))
+            XCTAssertEqual(first.replacement, marker + source + marker)
+            let second = try XCTUnwrap(MarkdownSelectionEdit.make(command: command, text: first.replacement,
+                selection: first.selectedRange))
+            XCTAssertEqual(second.range, NSRange(location: 0, length: first.replacement.utf16.count))
+            XCTAssertEqual(second.replacement, source)
+            XCTAssertEqual(second.selectedRange, NSRange(location: 0, length: source.utf16.count))
+            let empty = try XCTUnwrap(MarkdownSelectionEdit.make(command: command, text: marker + marker,
+                selection: NSRange(location: marker.utf16.count, length: 0)))
+            XCTAssertEqual(empty.replacement, "")
+        }
+    }
+
+    func testBoldKeepsWhitespaceAndListPrefixesOutsideEmphasis() throws {
+        for prefix in ["", "- ", "- [ ] ", "1. "] {
+            let source = prefix + "a sentence  \n"
+            let edit = try XCTUnwrap(MarkdownSelectionEdit.make(command: .bold, text: source,
+                selection: NSRange(location: 0, length: source.utf16.count)))
+            let result = (source as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+            XCTAssertEqual(result, prefix + "**a sentence**  \n")
+        }
+    }
+
+    @MainActor
+    func testTaskPolishingPreservesBoldAndItalicFontsIncludingAfterHide() throws {
+        let editor = NSTextView()
+        editor.string = "- [x] styled"
+        let font = NSFontManager.shared.convert(NSFont.systemFont(ofSize: 14), toHaveTrait: [.boldFontMask, .italicFontMask])
+        editor.textStorage!.addAttribute(.font, value: font, range: NSRange(location: 6, length: 6))
+        for hidden in [false, true, false] {
+            TuckNoteTaskCheckboxPolisher.apply(to: editor, hidesCompletedTasks: hidden)
+            if !hidden {
+                let actual = try XCTUnwrap(editor.textStorage!.attribute(.font, at: 6, effectiveRange: nil) as? NSFont)
+                XCTAssertTrue(actual.fontDescriptor.symbolicTraits.contains(.bold))
+                XCTAssertTrue(actual.fontDescriptor.symbolicTraits.contains(.italic))
+            }
+        }
+    }
+
+    @MainActor
     func testAtomicListDeletionDoesNotChangeLiteralCodeOrBodyText() {
         for (source, caret) in [("```\n- \n```", 6), ("~~~md\n- [ ] \n~~~", 12), ("- body", 5)] {
             let editor = NSTextView()

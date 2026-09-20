@@ -437,6 +437,8 @@ final class NotchPanel: NSPanel {
             case "c": editor.copy(nil)
             case "v": editor.paste(nil)
             case "x": editor.cut(nil)
+            case "b": return MarkdownSelectionEdit.apply(.bold, to: editor)
+            case "i": return MarkdownSelectionEdit.apply(.italic, to: editor)
             case "z":
                 editor.undoManager?.undo()
                 editor.didChangeText()

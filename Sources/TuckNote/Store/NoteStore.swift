@@ -40,6 +40,7 @@ final class NoteStore: ObservableObject {
 
         do {
             notebook = try await storage.load()
+            if notebook.assignMissingPageMetadata() { scheduleSave() }
         } catch StorageError.corruptNotebookRecovered {
             notebook = .blank()
             notice = "Recovered a damaged notebook."
@@ -70,6 +71,18 @@ final class NoteStore: ObservableObject {
         scheduleSave()
     }
 
+    @discardableResult
+    func renamePage(_ id: UUID, to title: String) -> Bool {
+        let normalized = String(title.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(40))
+        guard !normalized.isEmpty,
+              let index = notebook.pages.firstIndex(where: { $0.id == id }) else { return false }
+        guard notebook.pages[index].title != normalized else { return true }
+        notebook.pages[index].title = normalized
+        notebook.pages[index].modifiedAt = .now
+        scheduleSave()
+        return true
+    }
+
     func selectAdjacentPage(offset: Int) {
         guard let index = activePageIndex else { return }
         let next = index + offset
@@ -78,7 +91,12 @@ final class NoteStore: ObservableObject {
     }
 
     func removeActivePage() {
-        notebook.removePage(id: notebook.activePageID)
+        removePage(notebook.activePageID)
+    }
+
+    func removePage(_ id: UUID) {
+        guard notebook.pages.contains(where: { $0.id == id }) else { return }
+        notebook.removePage(id: id)
         scheduleSave()
     }
 

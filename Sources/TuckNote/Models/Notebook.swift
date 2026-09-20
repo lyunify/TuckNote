@@ -6,14 +6,19 @@ struct NotePage: Codable, Equatable, Identifiable, Sendable {
     var modifiedAt: Date
     var selectionLocation: Int
     var selectionLength: Int
+    var title: String?
+    var isCompactTab: Bool?
 
     init(id: UUID = UUID(), markdown: String = "", modifiedAt: Date = .now,
-         selectionLocation: Int = 0, selectionLength: Int = 0) {
+         selectionLocation: Int = 0, selectionLength: Int = 0, title: String? = nil,
+         isCompactTab: Bool? = nil) {
         self.id = id
         self.markdown = markdown
         self.modifiedAt = modifiedAt
         self.selectionLocation = selectionLocation
         self.selectionLength = selectionLength
+        self.title = title
+        self.isCompactTab = isCompactTab
     }
 }
 
@@ -85,12 +90,21 @@ struct Notebook: Codable, Equatable, Sendable {
     }
 
     static func blank() -> Notebook {
-        let page = NotePage()
+        let page = NotePage(title: "Today", isCompactTab: false)
         return Notebook(schemaVersion: currentSchemaVersion, pages: [page], activePageID: page.id)
     }
 
     mutating func addPage() {
-        let page = NotePage()
+        let usedTitles = Set(pages.compactMap(\.title))
+        let suggestions = ["Today", "Ideas", "Little things"]
+        var title = suggestions.first { !usedTitles.contains($0) }
+        var number = pages.count + 1
+        while title == nil {
+            let candidate = "Note \(number)"
+            if !usedTitles.contains(candidate) { title = candidate }
+            number += 1
+        }
+        let page = NotePage(title: title, isCompactTab: true)
         pages.append(page)
         activePageID = page.id
     }
@@ -98,15 +112,37 @@ struct Notebook: Codable, Equatable, Sendable {
     mutating func removePage(id: UUID) {
         guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
         guard pages.count > 1 else {
-            pages[0] = NotePage(id: pages[0].id)
+            pages[0] = NotePage(id: pages[0].id, title: pages[0].title, isCompactTab: pages[0].isCompactTab)
             activePageID = pages[0].id
             return
         }
         pages.remove(at: index)
-        activePageID = pages[min(index, pages.count - 1)].id
+        if activePageID == id {
+            activePageID = pages[min(index, pages.count - 1)].id
+        }
     }
 
     private static func normalizedPages(_ pages: [NotePage]) -> [NotePage] {
         return pages.isEmpty ? [NotePage()] : pages
+    }
+
+    mutating func assignMissingPageMetadata() -> Bool {
+        var changed = false
+        for index in storedPages.indices {
+            if storedPages[index].title == nil {
+                storedPages[index].title = Self.defaultTitle(at: index)
+                changed = true
+            }
+            if storedPages[index].isCompactTab == nil {
+                storedPages[index].isCompactTab = index >= 3
+                changed = true
+            }
+        }
+        return changed
+    }
+
+    static func defaultTitle(at index: Int) -> String {
+        let titles = ["Today", "Ideas", "Little things"]
+        return titles.indices.contains(index) ? titles[index] : "Note \(index + 1)"
     }
 }

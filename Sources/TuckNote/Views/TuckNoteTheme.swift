@@ -13,35 +13,40 @@ struct TuckNotePalette {
     let accent: Color
     let codeBlockBackground: Color
     let preferredColorScheme: ColorScheme
+
+    var isLight: Bool { preferredColorScheme == .light }
+    var toolbarSurface: Color { isLight ? Color(red: 245 / 255, green: 247 / 255, blue: 251 / 255) : Color(red: 29 / 255, green: 37 / 255, blue: 50 / 255) }
+    var shellTop: Color { isLight ? Color(red: 250 / 255, green: 251 / 255, blue: 254 / 255) : Color(red: 37 / 255, green: 46 / 255, blue: 62 / 255) }
+    var shellBottom: Color { isLight ? Color(red: 229 / 255, green: 234 / 255, blue: 243 / 255) : Color(red: 27 / 255, green: 34 / 255, blue: 48 / 255) }
 }
 
 enum TuckNoteTheme {
     static let light = TuckNotePalette(
-        rose: Color(red: 231 / 255, green: 185 / 255, blue: 186 / 255),
-        espresso: Color(red: 89 / 255, green: 50 / 255, blue: 47 / 255),
-        paper: Color(red: 255 / 255, green: 248 / 255, blue: 244 / 255),
-        editor: Color(red: 246 / 255, green: 229 / 255, blue: 223 / 255),
-        border: Color(red: 236 / 255, green: 213 / 255, blue: 205 / 255),
-        shell: Color(red: 231 / 255, green: 185 / 255, blue: 186 / 255),
-        shellHighlight: Color(red: 236 / 255, green: 213 / 255, blue: 205 / 255),
-        ink: Color(red: 89 / 255, green: 50 / 255, blue: 47 / 255),
-        mutedInk: Color(red: 0.32, green: 0.22, blue: 0.21),
-        accent: Color(red: 243 / 255, green: 197 / 255, blue: 107 / 255),
-        codeBlockBackground: Color(red: 238 / 255, green: 218 / 255, blue: 211 / 255),
+        rose: Color(red: 238 / 255, green: 241 / 255, blue: 247 / 255),
+        espresso: Color(red: 41 / 255, green: 51 / 255, blue: 69 / 255),
+        paper: Color(red: 252 / 255, green: 253 / 255, blue: 255 / 255),
+        editor: Color(red: 252 / 255, green: 253 / 255, blue: 255 / 255),
+        border: Color(red: 220 / 255, green: 226 / 255, blue: 237 / 255),
+        shell: Color(red: 238 / 255, green: 241 / 255, blue: 247 / 255),
+        shellHighlight: Color(red: 250 / 255, green: 251 / 255, blue: 254 / 255),
+        ink: Color(red: 41 / 255, green: 51 / 255, blue: 69 / 255),
+        mutedInk: Color(red: 96 / 255, green: 109 / 255, blue: 132 / 255),
+        accent: Color(red: 116 / 255, green: 134 / 255, blue: 187 / 255),
+        codeBlockBackground: Color(red: 239 / 255, green: 242 / 255, blue: 248 / 255),
         preferredColorScheme: .light
     )
     static let dark = TuckNotePalette(
-        rose: Color(red: 16 / 255, green: 16 / 255, blue: 16 / 255),
-        espresso: Color(red: 247 / 255, green: 247 / 255, blue: 242 / 255),
-        paper: Color(red: 18 / 255, green: 18 / 255, blue: 18 / 255),
-        editor: Color(red: 16 / 255, green: 16 / 255, blue: 16 / 255),
-        border: Color(red: 48 / 255, green: 48 / 255, blue: 48 / 255),
-        shell: Color(red: 0 / 255, green: 0 / 255, blue: 0 / 255),
-        shellHighlight: Color(red: 48 / 255, green: 48 / 255, blue: 48 / 255),
-        ink: Color(red: 247 / 255, green: 247 / 255, blue: 242 / 255),
-        mutedInk: Color(red: 0.68, green: 0.68, blue: 0.65),
-        accent: Color(red: 243 / 255, green: 197 / 255, blue: 107 / 255),
-        codeBlockBackground: Color(red: 28 / 255, green: 28 / 255, blue: 28 / 255),
+        rose: Color(red: 32 / 255, green: 39 / 255, blue: 52 / 255),
+        espresso: Color(red: 232 / 255, green: 237 / 255, blue: 247 / 255),
+        paper: Color(red: 23 / 255, green: 28 / 255, blue: 36 / 255),
+        editor: Color(red: 23 / 255, green: 28 / 255, blue: 36 / 255),
+        border: Color(red: 53 / 255, green: 64 / 255, blue: 85 / 255),
+        shell: Color(red: 32 / 255, green: 39 / 255, blue: 52 / 255),
+        shellHighlight: Color(red: 53 / 255, green: 64 / 255, blue: 85 / 255),
+        ink: Color(red: 232 / 255, green: 237 / 255, blue: 247 / 255),
+        mutedInk: Color(red: 156 / 255, green: 170 / 255, blue: 194 / 255),
+        accent: Color(red: 116 / 255, green: 134 / 255, blue: 187 / 255),
+        codeBlockBackground: Color(red: 31 / 255, green: 40 / 255, blue: 55 / 255),
         preferredColorScheme: .dark
     )
 

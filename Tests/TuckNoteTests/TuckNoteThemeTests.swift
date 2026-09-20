@@ -39,11 +39,11 @@ final class TuckNoteThemeTests: XCTestCase {
     }
 
     func testFinalBrandColorsMatchApprovedHexValues() {
-        XCTAssertEqual(hex(TuckNoteTheme.rose), "#E7B9BA")
-        XCTAssertEqual(hex(TuckNoteTheme.espresso), "#59322F")
-        XCTAssertEqual(hex(TuckNoteTheme.paper), "#FFF8F4")
-        XCTAssertEqual(hex(TuckNoteTheme.editor), "#F6E5DF")
-        XCTAssertEqual(hex(TuckNoteTheme.border), "#ECD5CD")
+        XCTAssertEqual(hex(TuckNoteTheme.rose), "#EEF1F7")
+        XCTAssertEqual(hex(TuckNoteTheme.espresso), "#293345")
+        XCTAssertEqual(hex(TuckNoteTheme.paper), "#FCFDFF")
+        XCTAssertEqual(hex(TuckNoteTheme.editor), "#FCFDFF")
+        XCTAssertEqual(hex(TuckNoteTheme.border), "#DCE2ED")
         XCTAssertEqual(TuckNoteTheme.expandedCornerRadius, 18)
     }
 
@@ -54,14 +54,24 @@ final class TuckNoteThemeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(contrastRatio(foreground, background), 4.5)
     }
 
+    func testSecondaryLightTextRemainsReadable() throws {
+        let palette = TuckNoteTheme.light
+        let foreground = try XCTUnwrap(NSColor(palette.mutedInk).usingColorSpace(.sRGB))
+        for surface in [palette.editor, palette.shell] {
+            let background = try XCTUnwrap(NSColor(surface).usingColorSpace(.sRGB))
+            XCTAssertGreaterThanOrEqual(contrastRatio(foreground, background), 4.5)
+        }
+    }
+
     func testDarkPaletteKeepsReadableEditorContrast() throws {
         let palette = TuckNoteTheme.palette(for: .dark)
         let foreground = try XCTUnwrap(NSColor(palette.ink).usingColorSpace(.sRGB))
         let background = try XCTUnwrap(NSColor(palette.editor).usingColorSpace(.sRGB))
 
-        XCTAssertEqual(hex(palette.shell), "#000000")
-        XCTAssertEqual(hex(palette.editor), "#101010")
-        XCTAssertEqual(hex(palette.ink), "#F7F7F2")
+        XCTAssertEqual(hex(palette.shell), "#202734")
+        XCTAssertEqual(hex(palette.editor), "#171C24")
+        XCTAssertEqual(hex(palette.ink), "#E8EDF7")
+        XCTAssertEqual(hex(palette.accent), "#7486BB")
         XCTAssertEqual(palette.preferredColorScheme, .dark)
         XCTAssertGreaterThanOrEqual(contrastRatio(foreground, background), 4.5)
     }
@@ -69,9 +79,9 @@ final class TuckNoteThemeTests: XCTestCase {
     func testLightPalettePreservesApprovedBrandColors() {
         let palette = TuckNoteTheme.palette(for: .light)
 
-        XCTAssertEqual(hex(palette.shell), "#E7B9BA")
-        XCTAssertEqual(hex(palette.ink), "#59322F")
-        XCTAssertEqual(hex(palette.accent), "#F3C56B")
+        XCTAssertEqual(hex(palette.shell), "#EEF1F7")
+        XCTAssertEqual(hex(palette.ink), "#293345")
+        XCTAssertEqual(hex(palette.accent), "#7486BB")
         XCTAssertEqual(palette.preferredColorScheme, .light)
     }
 
