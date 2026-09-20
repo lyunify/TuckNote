@@ -8,7 +8,7 @@ A native macOS notebook for the thoughts you want to keep close. Open it from yo
 
 ## Get Started
 
-Requires **macOS 14 or later**. A packaged download is not available yet; you can build the app from source below.
+Requires **macOS 14 or later**, on Apple Silicon or Intel. A packaged download is not available yet; you can build the app from source below.
 
 - Hover over or click the top-center of your screen to open your notes.
 - Write Markdown, check off tasks, and paste or drag in images.
@@ -34,7 +34,9 @@ To create a local app bundle and ZIP:
 open dist/TuckNotes.app
 ```
 
-The output is `dist/TuckNotes.app` and `dist/TuckNotes-macOS.zip`. Move the app into Applications to keep it installed. The script builds for the host architecture, not a Universal binary. Local builds are not Developer ID signed or notarized, so macOS may display a security warning.
+The output is `dist/TuckNotes.app` and `dist/TuckNotes-macOS.zip`. The universal app includes both Apple Silicon and Intel versions; you only need one download. Move the app into Applications to keep it installed. Local builds are not Developer ID signed or notarized, so macOS may display a security warning.
+
+On a Mac without a notch, use the same top-center screen area to open your notes.
 
 ## Built With
 
@@ -43,7 +45,7 @@ The output is `dist/TuckNotes.app` and `dist/TuckNotes-macOS.zip`. Move the app 
 - **KeyboardShortcuts** for the global shortcut.
 - **Local JSON files and UserDefaults** for notes and preferences.
 
-GitHub Actions checks tests and packaging. The [product website](https://lyunify.github.io/TuckNote/) is served from `docs/` through GitHub Pages.
+GitHub Actions runs tests on Apple Silicon and Intel and verifies the universal package. The [product website](https://lyunify.github.io/TuckNote/) is served from `docs/` through GitHub Pages.
 
 ## License
 

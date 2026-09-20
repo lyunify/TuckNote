@@ -14,12 +14,18 @@ APP_ICON_SOURCE="$REPO_ROOT/Assets/AppIcon.png"
 APP_ICON_NAME="TuckNotes.icns"
 
 cd "$REPO_ROOT"
-swift build -c release --disable-sandbox
-BIN_DIR="$(swift build -c release --disable-sandbox --show-bin-path)"
+swift build -c release --arch arm64 --disable-sandbox
+swift build -c release --arch x86_64 --disable-sandbox
+ARM_BIN_DIR="$(swift build -c release --arch arm64 --disable-sandbox --show-bin-path)"
+INTEL_BIN_DIR="$(swift build -c release --arch x86_64 --disable-sandbox --show-bin-path)"
 
 rm -rf "$DIST_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-install -m 755 "$BIN_DIR/TuckNote" "$MACOS_DIR/TuckNote"
+lipo -create "$ARM_BIN_DIR/TuckNote" "$INTEL_BIN_DIR/TuckNote" -output "$DIST_DIR/TuckNote"
+chmod 755 "$DIST_DIR/TuckNote"
+# Sign the standalone executable before placing it inside the local app bundle.
+codesign --force --sign - "$DIST_DIR/TuckNote"
+mv "$DIST_DIR/TuckNote" "$MACOS_DIR/TuckNote"
 install -m 644 "$REPO_ROOT/THIRD_PARTY_NOTICES.md" \
     "$RESOURCES_DIR/THIRD_PARTY_NOTICES.md"
 install -m 644 "$REPO_ROOT/LICENSE" "$RESOURCES_DIR/LICENSE"
@@ -50,10 +56,12 @@ create_app_icon
 
 copy_bundle() {
     local bundle="$1"
-    local source="$BIN_DIR/$bundle"
+    local source="$ARM_BIN_DIR/$bundle"
     local destination="$APP_DIR/$bundle"
 
     test -d "$source"
+    # Resource-only bundles must be identical for both architectures.
+    diff -qr "$source" "$INTEL_BIN_DIR/$bundle"
     while IFS= read -r directory; do
         local relative_path="${directory#"$source"}"
         mkdir -p "$destination$relative_path"
@@ -89,9 +97,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.6</string>
+    <string>1.1.7</string>
     <key>CFBundleVersion</key>
-    <string>10</string>
+    <string>11</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>

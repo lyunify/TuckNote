@@ -27,6 +27,25 @@ test -f "$APP/$HIGHLIGHTER_RESOURCES/atom-one-dark.css"
 test -f "$APP/Contents/Info.plist"
 test -f "$ZIP"
 
+verify_architectures() {
+    local binary="$1"
+    # The local bundle is not distribution-signed; verify its executable separately.
+    cp "$binary" "$TMP_DIR/TuckNote"
+    codesign --verify --strict "$TMP_DIR/TuckNote"
+    local architectures=" $(lipo -archs "$binary") "
+    for architecture in arm64 x86_64; do
+        case "$architectures" in
+            *" $architecture "*) ;;
+            *) echo "Missing $architecture in $binary" >&2; exit 1 ;;
+        esac
+        local minimum
+        minimum="$(xcrun vtool -arch "$architecture" -show-build "$binary" | awk '$1 == "minos" { print $2 }')"
+        test "$minimum" = "14.0"
+    done
+}
+
+verify_architectures "$APP/Contents/MacOS/TuckNote"
+
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")" = \
     "com.lyunify.TuckNote"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")" = \
@@ -39,6 +58,7 @@ test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP/Contents/I
     "TuckNotes"
 test "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$APP/Contents/Info.plist")" = \
     "true"
+test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")" = "14.0"
 plutil -lint "$APP/Contents/Info.plist"
 
 CONTENTS="$TMP_DIR/extracted"
@@ -52,5 +72,7 @@ test -f "$CONTENTS/TuckNotes.app/$KEYBOARD_RESOURCES/Info.plist"
 test -f "$CONTENTS/TuckNotes.app/$KEYBOARD_RESOURCES/en.lproj/Localizable.strings"
 test -f "$CONTENTS/TuckNotes.app/$HIGHLIGHTER_RESOURCES/atom-one-light.css"
 test -f "$CONTENTS/TuckNotes.app/$HIGHLIGHTER_RESOURCES/atom-one-dark.css"
+verify_architectures "$CONTENTS/TuckNotes.app/Contents/MacOS/TuckNote"
+diff -qr "$APP" "$CONTENTS/TuckNotes.app"
 
 echo "Package verification passed."

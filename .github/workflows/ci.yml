@@ -11,14 +11,17 @@ permissions:
 
 jobs:
   test:
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Show Swift version
         run: swift --version
       - name: Run tests
         run: swift test
-      - name: Build release
-        run: swift build -c release
-      - name: Verify distributable package
+      - name: Verify universal distributable package
         run: bash Scripts/verify-package.sh
