@@ -112,6 +112,8 @@ PLIST
 
 plutil -lint "$CONTENTS_DIR/Info.plist" >/dev/null
 ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ZIP_PATH"
+(cd "$DIST_DIR" && shasum -a 256 "$(basename "$ZIP_PATH")" > SHA256SUMS.txt)
 
 echo "Created $APP_DIR"
 echo "Created $ZIP_PATH"
+echo "Created $DIST_DIR/SHA256SUMS.txt"

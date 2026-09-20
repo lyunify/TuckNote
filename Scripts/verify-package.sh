@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP="$REPO_ROOT/dist/TuckNotes.app"
 ZIP="$REPO_ROOT/dist/TuckNotes-macOS.zip"
+CHECKSUMS="$REPO_ROOT/dist/SHA256SUMS.txt"
 KEYBOARD_RESOURCES="KeyboardShortcuts_KeyboardShortcuts.bundle"
 HIGHLIGHTER_RESOURCES="Highlighter_Highlighter.bundle"
 
@@ -26,6 +27,8 @@ test -f "$APP/$HIGHLIGHTER_RESOURCES/atom-one-light.css"
 test -f "$APP/$HIGHLIGHTER_RESOURCES/atom-one-dark.css"
 test -f "$APP/Contents/Info.plist"
 test -f "$ZIP"
+test -f "$CHECKSUMS"
+(cd "$REPO_ROOT/dist" && shasum -a 256 -c SHA256SUMS.txt)
 
 verify_architectures() {
     local binary="$1"
