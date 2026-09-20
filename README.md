@@ -8,7 +8,7 @@ A native macOS notebook for the thoughts you want to keep close. Open it from yo
 
 ## Get Started
 
-Requires **macOS 14 or later**, on Apple Silicon or Intel. A packaged download is not available yet; you can build the app from source below.
+Supports **Apple Silicon and Intel Macs** running **macOS 14 or later**. A packaged download is not available yet; you can build the app from source below.
 
 - Hover over or click the top-center of your screen to open your notes.
 - Write Markdown, check off tasks, and paste or drag in images.
